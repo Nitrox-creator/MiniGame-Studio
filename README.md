@@ -18,6 +18,7 @@ Si le site n'est pas encore publié, active GitHub Pages dans **Settings → Pag
 - Modes plateformes, exploration et course; quatre environnements et réglage de la lumière.
 - Test jouable, contrôles clavier, collecte de cristaux et détection des dangers et objectifs.
 - Annuler/rétablir, raccourcis clavier, sauvegarde automatique locale, import/export JSON et liens de partage.
+- Scripts JavaScript exécutés dans un Worker séparé, avec API de log, sélection, déplacement, rotation, échelle et couleur pour les objets.
 - Export d'un jeu 3D HTML à partager.
 
 ## Lancer en local

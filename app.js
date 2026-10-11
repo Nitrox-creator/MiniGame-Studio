@@ -102,6 +102,7 @@ let outlinerRefreshQueued = false;
 let scriptWorker = null;
 let scriptWorkerUrl = null;
 let scriptTimer = 0;
+const SCRIPT_LIMIT_CHARS = 20000;
 
 const groundMaterial = new THREE.MeshStandardMaterial({ color: terrainStyles[terrain].color, roughness: 0.92 });
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), groundMaterial);
@@ -360,6 +361,25 @@ function captureState() {
   };
 }
 
+function getScriptTemplate() {
+  return `api.log('Scène prête : ' + api.objects.length + ' objets');
+for (const object of api.objects) {
+  if (object.id.startsWith('asset:')) {
+    if (String(object.name).toLowerCase().includes('arme')) {
+      api.scale(object.id, 0.82);
+      api.color(object.id, '#d9e879');
+    }
+  }
+}
+api.log('Script Worker prêt');`;
+}
+
+function loadScriptSample() {
+  $('scriptEditor').value = getScriptTemplate();
+  $('scriptOutput').textContent = 'Exemple de script chargé.';
+  commitChange('Script d’exemple chargé');
+}
+
 async function applyState(state) {
   const loadedAssets = await Promise.all((state.assets || []).map(async (descriptor) => ({
     descriptor,
@@ -387,7 +407,7 @@ async function applyState(state) {
   for (const key of Array.from(blocks.keys())) removeBlockRaw(key);
   for (const id of Array.from(importedAssets.keys())) removeImportedAsset(id);
   for (const block of state.blocks) setBlockRaw(block);
-  $('scriptEditor').value = typeof state.script === 'string' ? state.script.slice(0, 20000) : '';
+  $('scriptEditor').value = typeof state.script === 'string' ? state.script.slice(0, SCRIPT_LIMIT_CHARS) : '';
   for (const { descriptor, object } of loadedAssets) addImportedAsset(descriptor, object);
   selectedAssetId = null;
   hoveredKey = null;
@@ -574,6 +594,62 @@ function setImportedColor(asset, color) {
   });
 }
 
+function buildScriptWorkerSource() {
+  return `self.onmessage = async ({ data }) => {
+    const commands = [];
+    const makeCommand = (action, id, payload = {}) => {
+      const command = { action, id, ...payload };
+      if (typeof id !== 'string') return null;
+      commands.push(command);
+      return command;
+    };
+    const robustNumber = (value, fallback = 0) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const objects = Array.isArray(data.objects) ? data.objects.map((item) => ({ ...item })) : [];
+    const log = (...values) => postMessage({ type: 'log', values: values.map(String) });
+    const api = Object.freeze({
+      objects: Object.freeze(objects),
+      log,
+      get: (id) => objects.find((object) => object.id === id) ?? null,
+      find: (predicate) => {
+        if (typeof predicate === 'function') return objects.filter((object) => predicate(object));
+        if (typeof predicate === 'string') return objects.filter((object) => String(object.name ?? '').toLowerCase().includes(predicate.toLowerCase()));
+        if (predicate && typeof predicate === 'object') {
+          const keys = Object.keys(predicate);
+          return objects.filter((object) => keys.every((key) => object[key] === predicate[key]));
+        }
+        return [];
+      },
+      move: (id, x, y, z) => makeCommand('move', id, { values: [robustNumber(x), robustNumber(y), robustNumber(z)] }),
+      rotate: (id, degrees) => makeCommand('rotate', id, { value: robustNumber(degrees) }),
+      scale: (id, value) => makeCommand('scale', id, { value: robustNumber(value, 1) }),
+      color: (id, value) => makeCommand('color', id, { value: String(value ?? '#ffffff') }),
+      set: (id, patch) => {
+        if (!patch || typeof patch !== 'object') return false;
+        const object = objects.find((entry) => entry.id === id);
+        if (!object) return false;
+        if (Array.isArray(patch.position) && patch.position.length >= 3) object.position = patch.position.slice(0, 3).map(Number);
+        if (Array.isArray(patch.rotation) && patch.rotation.length >= 3) object.rotation = patch.rotation.slice(0, 3).map(Number);
+        if (Array.isArray(patch.scale) && patch.scale.length >= 3) object.scale = patch.scale.slice(0, 3).map(Number);
+        if (typeof patch.name === 'string') object.name = patch.name;
+        if (typeof patch.color === 'string') object.color = patch.color;
+        makeCommand('set', id, { patch: { ...patch } });
+        return true;
+      },
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)))
+    });
+    try {
+      const runtime = new Function('api', '"use strict"; return (async () => { ' + data.script + ' })();');
+      await runtime(api);
+      postMessage({ type: 'done', commands });
+    } catch (error) {
+      postMessage({ type: 'error', message: String(error && error.stack ? error.stack : error) });
+    }
+  };`;
+}
+
 function stopProjectScript(message = 'Script arrêté') {
   if (scriptTimer) clearTimeout(scriptTimer);
   scriptTimer = 0;
@@ -599,7 +675,13 @@ function applyScriptCommands(commands) {
       else if (command.action === 'rotate' && Number.isFinite(command.value)) asset.object.rotation.y = THREE.MathUtils.degToRad(command.value);
       else if (command.action === 'scale' && Number.isFinite(command.value)) asset.object.scale.setScalar(THREE.MathUtils.clamp(command.value, 0.01, 100));
       else if (command.action === 'color' && /^#[\da-f]{6}$/i.test(command.value)) setImportedColor(asset, command.value);
-      else continue;
+      else if (command.action === 'set' && command.patch && typeof command.patch === 'object') {
+        if (Array.isArray(command.patch.position) && command.patch.position.length >= 3) asset.object.position.set(...command.patch.position.slice(0, 3));
+        if (Array.isArray(command.patch.rotation) && command.patch.rotation.length >= 3) asset.object.rotation.set(command.patch.rotation[0], command.patch.rotation[1], command.patch.rotation[2]);
+        if (Array.isArray(command.patch.scale) && command.patch.scale.length >= 3) asset.object.scale.set(...command.patch.scale.slice(0, 3));
+        if (typeof command.patch.name === 'string') asset.name = command.patch.name;
+        if (typeof command.patch.color === 'string') setImportedColor(asset, command.patch.color);
+      } else continue;
       changed = true;
       continue;
     }
@@ -609,6 +691,17 @@ function applyScriptCommands(commands) {
       if (!block) continue;
       setBlockRaw({ ...block, color: command.value });
       changed = true;
+      continue;
+    }
+    if (command.id.startsWith('block:') && command.action === 'set' && command.patch && typeof command.patch === 'object') {
+      const blockKey = command.id.slice(6);
+      const block = blocks.get(blockKey);
+      if (!block) continue;
+      const next = { ...block, ...command.patch };
+      if (typeof next.color === 'string' && /^#[\da-f]{6}$/i.test(next.color)) {
+        setBlockRaw(next);
+        changed = true;
+      }
     }
   }
   if (!changed) return;
@@ -619,19 +712,7 @@ function applyScriptCommands(commands) {
 
 function runProjectScript() {
   stopProjectScript('Script relancé');
-  const source = `self.onmessage = ({ data }) => {
-    const commands = [];
-    const log = (...values) => postMessage({ type: 'log', values: values.map(String) });
-    const api = Object.freeze({
-      objects: Object.freeze(data.objects), log,
-      move: (id, x, y, z) => commands.push({ action: 'move', id, values: [x, y, z].map(Number) }),
-      rotate: (id, degrees) => commands.push({ action: 'rotate', id, value: Number(degrees) }),
-      scale: (id, value) => commands.push({ action: 'scale', id, value: Number(value) }),
-      color: (id, value) => commands.push({ action: 'color', id, value: String(value) })
-    });
-    try { new Function('api', '"use strict";\\n' + data.script)(api); postMessage({ type: 'done', commands }); }
-    catch (error) { postMessage({ type: 'error', message: String(error.stack || error) }); }
-  };`;
+  const source = buildScriptWorkerSource();
   scriptWorkerUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
   scriptWorker = new Worker(scriptWorkerUrl);
   $('scriptOutput').textContent = 'Exécution…';
@@ -653,10 +734,10 @@ function runProjectScript() {
     stopProjectScript('Erreur de script');
   };
   const objects = [
-    ...Array.from(blocks.values(), (block) => ({ id: `block:${block.key}`, name: definitions[block.type].name, position: [worldX(block.x), block.y, worldZ(block.z)] })),
-    ...Array.from(importedAssets.values(), (asset) => ({ id: `asset:${asset.id}`, name: asset.name, position: asset.object.position.toArray(), rotation: asset.object.rotation.toArray(), scale: asset.object.scale.toArray() }))
+    ...Array.from(blocks.values(), (block) => ({ id: `block:${block.key}`, name: definitions[block.type].name, position: [worldX(block.x), block.y, worldZ(block.z)], color: block.color || definitions[block.type].color })),
+    ...Array.from(importedAssets.values(), (asset) => ({ id: `asset:${asset.id}`, name: asset.name, position: asset.object.position.toArray(), rotation: asset.object.rotation.toArray(), scale: asset.object.scale.toArray(), color: '#8cc6ff' }))
   ];
-  scriptWorker.postMessage({ script: $('scriptEditor').value.slice(0, 20000), objects });
+  scriptWorker.postMessage({ script: $('scriptEditor').value.slice(0, SCRIPT_LIMIT_CHARS), objects });
   scriptTimer = setTimeout(() => {
     $('scriptOutput').textContent += '\nArrêt de sécurité : délai de 2 secondes dépassé.';
     stopProjectScript('Script arrêté après dépassement du délai');
@@ -983,7 +1064,7 @@ async function loadProject(data) {
       name: String(data.name || 'Projet importé').slice(0, 50),
       mode: ['platformer', 'explorer', 'racer'].includes(data.mode) ? data.mode : 'platformer',
       terrain: data.terrain, blocks: clean, assets: assetData,
-      script: typeof data.script === 'string' ? data.script.slice(0, 20000) : ''
+      script: typeof data.script === 'string' ? data.script.slice(0, SCRIPT_LIMIT_CHARS) : ''
     };
   } else if (Array.isArray(data?.grid) && Number.isInteger(data.W) && Number.isInteger(data.H) && data.W >= 4 && data.H >= 4 && data.W <= 50 && data.H <= 50) {
     const legacy = [];
@@ -1250,6 +1331,7 @@ $('playBtn').onclick = startGame;
 $('stopBtn').onclick = () => stopGame();
 $('runScriptBtn').onclick = runProjectScript;
 $('stopScriptBtn').onclick = () => stopProjectScript();
+$('loadScriptSampleBtn').onclick = loadScriptSample;
 $('scriptEditor').addEventListener('input', () => commitChange('Script modifié'));
 $('scriptEditor').addEventListener('keydown', (event) => {
   if (event.key === 'Tab') {

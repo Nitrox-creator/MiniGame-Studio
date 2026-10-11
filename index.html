@@ -73,8 +73,12 @@
       <section class="section"><h2 class="section-heading">Projet & assets</h2><div class="stage-group" style="flex-wrap:wrap"><button id="assetImportBtn" class="primary">＋ Importer modèle</button><button id="importBtn">Projet JSON</button><button id="exportGameBtn">Exporter jeu 3D</button></div><input id="assetFiles" type="file" accept=".stl,.obj,.gltf,.glb,.fbx" multiple hidden><input id="importFile" type="file" accept=".json,application/json" hidden><p class="tool-note">STL · OBJ · GLTF/GLB · FBX, jusqu’à 32 Mo par fichier. Les fichiers glTF à dépendances externes doivent être convertis en GLB.</p></section>
       <section class="section"><h2 class="section-heading">Scripts</h2><textarea id="scriptEditor" class="script-editor" spellcheck="false" aria-label="Code JavaScript du projet">api.log('Scène prête : ' + api.objects.length + ' objets');
     for (const object of api.objects) {
-      if (object.name.toLowerCase().includes('arme')) api.scale(object.id, 0.8);
-    }</textarea><div class="script-actions"><button id="runScriptBtn" class="primary">▶ Exécuter</button><button id="stopScriptBtn" disabled>Arrêter</button></div><pre id="scriptOutput" class="script-output" aria-live="polite">Les scripts s’exécutent dans un Worker séparé de l’interface.</pre></section>
+      if (String(object.name).toLowerCase().includes('arme')) {
+        api.scale(object.id, 0.82);
+        api.color(object.id, '#d9e879');
+      }
+    }
+    api.log('Script Worker prêt');</textarea><div class="script-actions"><button id="runScriptBtn" class="primary">▶ Exécuter</button><button id="stopScriptBtn" disabled>Arrêter</button><button id="loadScriptSampleBtn" class="subtle" type="button">Exemple</button></div><pre id="scriptOutput" class="script-output" aria-live="polite">Les scripts s’exécutent dans un Worker séparé de l’interface.</pre></section>
     </aside>
   </main>
   <script type="module" src="./app.js"></script>

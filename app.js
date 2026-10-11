@@ -5,6 +5,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { buildScriptWorkerSource, prepareSceneObjects } from './script-runtime.js';
 
 const $ = (id) => document.getElementById(id);
 const view = $('view');
@@ -363,12 +364,15 @@ function captureState() {
 
 function getScriptTemplate() {
   return `api.log('Scène prête : ' + api.objects.length + ' objets');
+const goal = api.find((entry) => String(entry.name).toLowerCase().includes('portail'))[0];
+if (goal) {
+  api.color(goal.id, '#d9e879');
+}
+api.create('platform', [3, 1, 4], { color: '#b88051', name: 'Plateforme scriptée' });
 for (const object of api.objects) {
-  if (object.id.startsWith('asset:')) {
-    if (String(object.name).toLowerCase().includes('arme')) {
-      api.scale(object.id, 0.82);
-      api.color(object.id, '#d9e879');
-    }
+  if (object.id.startsWith('asset:') && String(object.name).toLowerCase().includes('arme')) {
+    api.scale(object.id, 0.82);
+    api.color(object.id, '#d9e879');
   }
 }
 api.log('Script Worker prêt');`;
@@ -594,61 +598,6 @@ function setImportedColor(asset, color) {
   });
 }
 
-function buildScriptWorkerSource() {
-  return `self.onmessage = async ({ data }) => {
-    const commands = [];
-    const makeCommand = (action, id, payload = {}) => {
-      const command = { action, id, ...payload };
-      if (typeof id !== 'string') return null;
-      commands.push(command);
-      return command;
-    };
-    const robustNumber = (value, fallback = 0) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? parsed : fallback;
-    };
-    const objects = Array.isArray(data.objects) ? data.objects.map((item) => ({ ...item })) : [];
-    const log = (...values) => postMessage({ type: 'log', values: values.map(String) });
-    const api = Object.freeze({
-      objects: Object.freeze(objects),
-      log,
-      get: (id) => objects.find((object) => object.id === id) ?? null,
-      find: (predicate) => {
-        if (typeof predicate === 'function') return objects.filter((object) => predicate(object));
-        if (typeof predicate === 'string') return objects.filter((object) => String(object.name ?? '').toLowerCase().includes(predicate.toLowerCase()));
-        if (predicate && typeof predicate === 'object') {
-          const keys = Object.keys(predicate);
-          return objects.filter((object) => keys.every((key) => object[key] === predicate[key]));
-        }
-        return [];
-      },
-      move: (id, x, y, z) => makeCommand('move', id, { values: [robustNumber(x), robustNumber(y), robustNumber(z)] }),
-      rotate: (id, degrees) => makeCommand('rotate', id, { value: robustNumber(degrees) }),
-      scale: (id, value) => makeCommand('scale', id, { value: robustNumber(value, 1) }),
-      color: (id, value) => makeCommand('color', id, { value: String(value ?? '#ffffff') }),
-      set: (id, patch) => {
-        if (!patch || typeof patch !== 'object') return false;
-        const object = objects.find((entry) => entry.id === id);
-        if (!object) return false;
-        if (Array.isArray(patch.position) && patch.position.length >= 3) object.position = patch.position.slice(0, 3).map(Number);
-        if (Array.isArray(patch.rotation) && patch.rotation.length >= 3) object.rotation = patch.rotation.slice(0, 3).map(Number);
-        if (Array.isArray(patch.scale) && patch.scale.length >= 3) object.scale = patch.scale.slice(0, 3).map(Number);
-        if (typeof patch.name === 'string') object.name = patch.name;
-        if (typeof patch.color === 'string') object.color = patch.color;
-        makeCommand('set', id, { patch: { ...patch } });
-        return true;
-      },
-      wait: (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)))
-    });
-    try {
-      const runtime = new Function('api', '"use strict"; return (async () => { ' + data.script + ' })();');
-      await runtime(api);
-      postMessage({ type: 'done', commands });
-    } catch (error) {
-      postMessage({ type: 'error', message: String(error && error.stack ? error.stack : error) });
-    }
-  };`;
-}
 
 function stopProjectScript(message = 'Script arrêté') {
   if (scriptTimer) clearTimeout(scriptTimer);
@@ -681,7 +630,30 @@ function applyScriptCommands(commands) {
         if (Array.isArray(command.patch.scale) && command.patch.scale.length >= 3) asset.object.scale.set(...command.patch.scale.slice(0, 3));
         if (typeof command.patch.name === 'string') asset.name = command.patch.name;
         if (typeof command.patch.color === 'string') setImportedColor(asset, command.patch.color);
+      } else if (command.action === 'delete') {
+        removeImportedAsset(asset.id);
       } else continue;
+      changed = true;
+      continue;
+    }
+    if (command.id.startsWith('block:') && command.action === 'create' && command.type && command.position && Array.isArray(command.position) && command.position.length >= 3) {
+      const x = Math.round(Number(command.position[0]));
+      const y = Math.round(Number(command.position[1]));
+      const z = Math.round(Number(command.position[2]));
+      const type = command.type;
+      if (!definitions[type]) continue;
+      const block = { x, y, z, type, color: /^#[\da-f]{6}$/i.test(command.color || '') ? command.color : (definitions[type]?.color || '#587c62') };
+      if (inBounds(x, y, z)) {
+        setBlockRaw(block);
+        changed = true;
+      }
+      continue;
+    }
+    if (command.id.startsWith('block:') && command.action === 'delete') {
+      const blockKey = command.id.slice(6);
+      const block = blocks.get(blockKey);
+      if (!block) continue;
+      removeBlockRaw(blockKey);
       changed = true;
       continue;
     }
@@ -701,6 +673,24 @@ function applyScriptCommands(commands) {
       if (typeof next.color === 'string' && /^#[\da-f]{6}$/i.test(next.color)) {
         setBlockRaw(next);
         changed = true;
+      }
+      continue;
+    }
+    if (command.action === 'select') {
+      if (command.id.startsWith('asset:')) {
+        const asset = importedAssets.get(command.id.slice(6));
+        if (asset) {
+          selectAsset(asset.id);
+          focusAsset(asset);
+          changed = true;
+        }
+      } else if (command.id.startsWith('block:')) {
+        const block = blocks.get(command.id.slice(6));
+        if (block) {
+          selectBlock(block.key);
+          focusBlock(block);
+          changed = true;
+        }
       }
     }
   }
@@ -733,10 +723,7 @@ function runProjectScript() {
     $('scriptOutput').textContent += `\n${event.message}`;
     stopProjectScript('Erreur de script');
   };
-  const objects = [
-    ...Array.from(blocks.values(), (block) => ({ id: `block:${block.key}`, name: definitions[block.type].name, position: [worldX(block.x), block.y, worldZ(block.z)], color: block.color || definitions[block.type].color })),
-    ...Array.from(importedAssets.values(), (asset) => ({ id: `asset:${asset.id}`, name: asset.name, position: asset.object.position.toArray(), rotation: asset.object.rotation.toArray(), scale: asset.object.scale.toArray(), color: '#8cc6ff' }))
-  ];
+  const objects = prepareSceneObjects(Array.from(blocks.values()), importedAssets);
   scriptWorker.postMessage({ script: $('scriptEditor').value.slice(0, SCRIPT_LIMIT_CHARS), objects });
   scriptTimer = setTimeout(() => {
     $('scriptOutput').textContent += '\nArrêt de sécurité : délai de 2 secondes dépassé.';

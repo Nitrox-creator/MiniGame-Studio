@@ -10,7 +10,9 @@ Si le site n'est pas encore publié, active GitHub Pages dans **Settings → Pag
 
 ## Fonctionnalités
 
-- Éditeur 3D voxel avec caméra orbitale, vue du dessus et zoom.
+- Vues éditeur en perspective, vue du dessus et caméra FPS libre à la souris; déplacement ZQSD/WASD et accélération avec Maj.
+- Test de niveau en première personne avec caméra joueur, contrôles clavier et sortie rapide avec Échap.
+- Hiérarchie de scène filtrable, sélection, focus caméra, suppression annulable et déplacement précis sur les axes X/Y/Z.
 - Bibliothèque de blocs, plateformes, rochers, cristaux, dangers, départs, portails, arbres, balises et eau.
 - Placement à différentes hauteurs, sélection, gomme et personnalisation des couleurs.
 - Modes plateformes, exploration et course; quatre environnements et réglage de la lumière.

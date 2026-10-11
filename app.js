@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
 const $ = (id) => document.getElementById(id);
 const view = $('view');
@@ -17,6 +18,7 @@ scene.background = new THREE.Color('#b7c7bc');
 scene.fog = new THREE.Fog('#b7c7bc', 30, 80);
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
 const controls = new OrbitControls(camera, renderer.domElement);
+const pointerControls = new PointerLockControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI / 2 - 0.03;
@@ -74,13 +76,19 @@ let projectName = 'Jardin suspendu';
 let gameMode = 'platformer';
 let terrain = 'grove';
 let playing = false;
+let fpsMode = false;
 let player = null;
+let fpsSavedCamera = null;
+let gameSavedCamera = null;
 let gestureState = null;
 let gestureChanged = false;
 let autosaveTimer = 0;
 let coinCount = 0;
 let hoveredKey = null;
 let dayLevel = 0.8;
+const cameraDirection = new THREE.Vector3();
+const cameraRight = new THREE.Vector3();
+let outlinerRefreshQueued = false;
 
 const groundMaterial = new THREE.MeshStandardMaterial({ color: terrainStyles[terrain].color, roughness: 0.92 });
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), groundMaterial);
@@ -258,6 +266,13 @@ function commitChange(message = 'Modifications enregistrées automatiquement') {
   $('saveStatus').textContent = message;
   $('objectCount').textContent = `${blocks.size} objets`;
   updateStats();
+  if (!outlinerRefreshQueued) {
+    outlinerRefreshQueued = true;
+    requestAnimationFrame(() => {
+      outlinerRefreshQueued = false;
+      renderOutliner();
+    });
+  }
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
     try {
@@ -281,6 +296,86 @@ function updateStats() {
   $('worldSize').textContent = `${width} × ${depth}`;
   $('objectCountStat').textContent = String(blocks.size);
   $('worldSizeStat').textContent = `${width} × ${depth}`;
+}
+
+function renderOutliner() {
+  const list = $('outlinerList');
+  const filter = $('sceneFilter').value.trim().toLocaleLowerCase();
+  const entries = Array.from(blocks.values())
+    .filter((block) => `${definitions[block.type].name} ${block.x + 1} ${block.y + 1} ${block.z + 1}`.toLocaleLowerCase().includes(filter))
+    .sort((a, b) => definitions[a.type].name.localeCompare(definitions[b.type].name) || a.z - b.z || a.y - b.y || a.x - b.x);
+  $('outlinerCount').textContent = String(blocks.size);
+  list.replaceChildren();
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'outliner-empty';
+    empty.textContent = blocks.size ? 'Aucun objet correspondant.' : 'La scène est vide.';
+    list.append(empty);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  for (const block of entries) {
+    const row = document.createElement('div');
+    row.className = `scene-row${block.key === hoveredKey ? ' selected' : ''}`;
+    row.setAttribute('role', 'treeitem');
+    row.setAttribute('aria-selected', String(block.key === hoveredKey));
+    const kind = document.createElement('span');
+    kind.className = 'scene-kind';
+    kind.style.setProperty('--swatch', block.color || definitions[block.type].color);
+    kind.textContent = definitions[block.type].name.slice(0, 1);
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = 'scene-select';
+    select.dataset.sceneSelect = block.key;
+    select.textContent = `${definitions[block.type].name}  ·  ${block.x + 1}, ${block.y + 1}, ${block.z + 1}`;
+    select.title = `Sélectionner ${definitions[block.type].name}`;
+    const focus = document.createElement('button');
+    focus.type = 'button';
+    focus.className = 'scene-focus';
+    focus.dataset.sceneFocus = block.key;
+    focus.textContent = '◎';
+    focus.title = 'Centrer la caméra sur cet objet';
+    focus.setAttribute('aria-label', focus.title);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'scene-delete';
+    remove.dataset.sceneDelete = block.key;
+    remove.textContent = '×';
+    remove.title = 'Supprimer cet objet';
+    remove.setAttribute('aria-label', remove.title);
+    row.append(kind, select, focus, remove);
+    fragment.append(row);
+  }
+  list.append(fragment);
+}
+
+function focusBlock(block) {
+  if (fpsMode || playing) return;
+  const target = new THREE.Vector3(worldX(block.x), block.y + 0.5, worldZ(block.z));
+  const offset = camera.position.clone().sub(controls.target);
+  const distance = Math.max(6, offset.length());
+  if (offset.lengthSq() < 0.01) offset.set(8, 7, 9);
+  camera.position.copy(target).add(offset.normalize().multiplyScalar(distance));
+  controls.target.copy(target);
+  controls.enabled = true;
+  controls.update();
+}
+
+function nudgeSelected(axis, amount) {
+  const block = blocks.get(hoveredKey);
+  if (!block || playing || fpsMode) return;
+  const nextPosition = { x: block.x, y: block.y, z: block.z };
+  nextPosition[axis] += amount;
+  if (!inBounds(nextPosition.x, nextPosition.y, nextPosition.z)) return;
+  const nextKey = keyOf(nextPosition.x, nextPosition.y, nextPosition.z);
+  if (blocks.has(nextKey)) return;
+  const before = captureState();
+  removeBlockRaw(block.key);
+  setBlockRaw({ ...block, ...nextPosition });
+  hoveredKey = nextKey;
+  recordUndo(before);
+  selectBlock(nextKey);
+  commitChange('Objet déplacé');
 }
 
 function toggleMode(nextMode) {
@@ -377,7 +472,7 @@ function getPointerCell(event) {
 }
 
 function applyPointer(event) {
-  if (playing) return;
+  if (playing || fpsMode) return;
   const cell = getPointerCell(event);
   if (!cell) return;
   if (selectedType === 'select') {
@@ -411,10 +506,11 @@ function selectBlock(key) {
   hoveredKey = key;
   document.querySelectorAll('[data-tool]').forEach((button) => button.classList.remove('active'));
   $('toolStatus').textContent = `${definitions[block.type].name} sélectionné · Alt + clic pour empiler`;
+  renderOutliner();
 }
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0 || playing) return;
+  if (event.button !== 0 || playing || fpsMode) return;
   gestureState = captureState();
   gestureChanged = false;
   if (selectedType !== 'select') controls.enabled = false;
@@ -450,6 +546,7 @@ function updateCameraLimits() {
 }
 
 function fitCamera(top = false) {
+  if (fpsMode || playing) return;
   controls.target.set(0, 0.2, 0);
   if (top) {
     camera.position.set(0, Math.max(width, depth) * 1.16, 0.01);
@@ -460,6 +557,71 @@ function fitCamera(top = false) {
   }
   controls.update();
 }
+
+function captureCamera() {
+  return { position: camera.position.clone(), target: controls.target.clone() };
+}
+
+function restoreCamera(snapshot) {
+  if (!snapshot) return;
+  camera.position.copy(snapshot.position);
+  controls.target.copy(snapshot.target);
+  controls.update();
+}
+
+function enterFpsView() {
+  if (playing || fpsMode) return;
+  if (!renderer.domElement.requestPointerLock) {
+    $('saveStatus').textContent = 'Le mode FPS nécessite un navigateur avec Pointer Lock';
+    return;
+  }
+  fpsSavedCamera = captureCamera();
+  const anchor = Array.from(blocks.values()).find((block) => block.type === 'spawn') || { x: Math.floor(width / 2), z: Math.floor(depth / 2), y: 0 };
+  const eyeX = worldX(anchor.x);
+  const eyeZ = worldZ(anchor.z);
+  const eyeY = groundHeight(anchor.x, anchor.z) + 1.65;
+  camera.position.set(eyeX, eyeY, eyeZ);
+  camera.lookAt(eyeX, eyeY, eyeZ - 1);
+  controls.enabled = false;
+  fpsMode = true;
+  document.querySelector('.stage').classList.add('fps-active');
+  $('fpsBtn').classList.add('active');
+  $('playState').textContent = 'VUE FPS';
+  $('saveStatus').textContent = 'ZQSD / WASD · Maj pour accélérer · Échap pour quitter';
+  pointerControls.lock();
+}
+
+function exitFpsView() {
+  if (!fpsMode) return;
+  fpsMode = false;
+  const snapshot = fpsSavedCamera;
+  fpsSavedCamera = null;
+  if (pointerControls.isLocked) pointerControls.unlock();
+  controls.enabled = true;
+  document.querySelector('.stage').classList.remove('fps-active');
+  $('fpsBtn').classList.remove('active');
+  $('playState').textContent = 'ÉDITEUR';
+  restoreCamera(snapshot);
+}
+
+function updateFpsCamera(delta) {
+  if (!pointerControls.isLocked) return;
+  const forward = Number(keyState.has('w') || keyState.has('z') || keyState.has('arrowup')) - Number(keyState.has('s') || keyState.has('arrowdown'));
+  const sideways = Number(keyState.has('d') || keyState.has('arrowright')) - Number(keyState.has('a') || keyState.has('q') || keyState.has('arrowleft'));
+  const vertical = Number(keyState.has(' ')) - Number(keyState.has('control'));
+  const speed = (keyState.has('shift') ? 13 : 6) * delta;
+  pointerControls.moveForward(forward * speed);
+  pointerControls.moveRight(sideways * speed);
+  camera.position.y += vertical * speed;
+  camera.position.x = THREE.MathUtils.clamp(camera.position.x, -width / 2 - 2, width / 2 + 2);
+  camera.position.y = THREE.MathUtils.clamp(camera.position.y, 0.45, maxHeight + 8);
+  camera.position.z = THREE.MathUtils.clamp(camera.position.z, -depth / 2 - 2, depth / 2 + 2);
+}
+
+pointerControls.addEventListener('unlock', () => {
+  if (fpsMode) exitFpsView();
+  else if (playing) stopGame();
+});
 
 function resizeWorld() {
   const nextWidth = Math.max(6, Math.min(50, Number($('mapWidth').value) || width));
@@ -526,18 +688,25 @@ const data=JSON.parse(${payload}),canvas=document.querySelector('#game'),rendere
 }
 
 function startGame() {
-  if (playing) return;
+  if (playing || fpsMode) return;
   playing = true;
+  gameSavedCamera = captureCamera();
   coinCount = 0;
   const spawn = Array.from(blocks.values()).find((block) => block.type === 'spawn') || { x: 1, z: depth - 3, y: 0 };
   const material = new THREE.MeshStandardMaterial({ color: '#f4e9ce', roughness: 0.55 });
   player = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.54, 4, 8), material);
   player.position.set(worldX(spawn.x), groundHeight(spawn.x, spawn.z) + 0.88, worldZ(spawn.z));
   player.castShadow = true;
+  player.visible = false;
   scene.add(player);
   player.userData.velocity = 0;
   player.userData.yaw = 0;
   controls.enabled = false;
+  camera.position.set(player.position.x, player.position.y + 0.3, player.position.z);
+  camera.lookAt(player.position.x, player.position.y + 0.3, player.position.z - 1);
+  document.querySelector('.stage').classList.add('fps-active');
+  pointerControls.lock();
+  $('fpsBtn').classList.remove('active');
   $('playBtn').classList.add('hidden');
   $('stopBtn').classList.remove('hidden');
   $('playState').textContent = 'PARTIE EN COURS';
@@ -581,8 +750,14 @@ function updateGame(delta) {
     player.rotation.y = player.userData.yaw;
   } else {
     const speed = (gameMode === 'explorer' ? 5.1 : 3.8) * delta;
-    dx = ((right ? 1 : 0) - (left ? 1 : 0)) * speed;
-    dz = ((backward ? 1 : 0) - (forward ? 1 : 0)) * speed;
+    camera.getWorldDirection(cameraDirection);
+    cameraDirection.y = 0;
+    cameraDirection.normalize();
+    cameraRight.set(-cameraDirection.z, 0, cameraDirection.x);
+    const forwardInput = Number(forward) - Number(backward);
+    const rightInput = Number(right) - Number(left);
+    dx = (cameraDirection.x * forwardInput + cameraRight.x * rightInput) * speed;
+    dz = (cameraDirection.z * forwardInput + cameraRight.z * rightInput) * speed;
   }
   const boundsX = width / 2 - 0.4;
   const boundsZ = depth / 2 - 0.4;
@@ -600,6 +775,7 @@ function updateGame(delta) {
     player.userData.velocity = 0;
   }
   player.position.y = nextFoot + 0.88;
+  camera.position.set(player.position.x, player.position.y + 0.3, player.position.z);
   const gx = Math.floor(player.position.x + width / 2);
   const gz = Math.floor(player.position.z + depth / 2);
   for (const block of blocks.values()) {
@@ -624,6 +800,7 @@ function updateGame(delta) {
 function stopGame(completed = false) {
   if (!playing) return;
   playing = false;
+  if (pointerControls.isLocked) pointerControls.unlock();
   if (player) {
     scene.remove(player);
     disposeTree(player);
@@ -631,6 +808,9 @@ function stopGame(completed = false) {
   }
   for (const block of blocks.values()) if (block.type === 'coin') block.mesh.visible = true;
   controls.enabled = true;
+  document.querySelector('.stage').classList.remove('fps-active');
+  restoreCamera(gameSavedCamera);
+  gameSavedCamera = null;
   $('stopBtn').classList.add('hidden');
   $('playBtn').classList.remove('hidden');
   $('playState').textContent = completed ? 'NIVEAU TERMINÉ' : 'ÉDITEUR';
@@ -709,6 +889,40 @@ $('elevation').addEventListener('input', (event) => { $('elevationValue').textCo
 $('resizeBtn').onclick = resizeWorld;
 $('homeView').onclick = () => fitCamera();
 $('topView').onclick = () => fitCamera(true);
+$('fpsBtn').onclick = () => fpsMode ? exitFpsView() : enterFpsView();
+$('sceneFilter').addEventListener('input', renderOutliner);
+$('outlinerList').addEventListener('click', (event) => {
+  const select = event.target.closest('[data-scene-select]');
+  const focus = event.target.closest('[data-scene-focus]');
+  const remove = event.target.closest('[data-scene-delete]');
+  if (select) {
+    const block = blocks.get(select.dataset.sceneSelect);
+    if (block) {
+      selectBlock(block.key);
+      focusBlock(block);
+    }
+  } else if (focus) {
+    const block = blocks.get(focus.dataset.sceneFocus);
+    if (block) focusBlock(block);
+  } else if (remove) {
+    const key = remove.dataset.sceneDelete;
+    if (!blocks.has(key)) return;
+    const before = captureState();
+    removeBlockRaw(key);
+    if (hoveredKey === key) {
+      hoveredKey = null;
+      $('selectedType').textContent = 'Aucun';
+      $('selectedPosition').textContent = 'Aucun objet sélectionné';
+      $('selectedPositionInfo').textContent = 'X — · Y — · Z —';
+    }
+    recordUndo(before);
+    commitChange('Objet supprimé');
+  }
+});
+document.querySelectorAll('[data-nudge]').forEach((button) => button.addEventListener('click', () => {
+  const [axis, amount] = button.dataset.nudge.split(',');
+  nudgeSelected(axis, Number(amount));
+}));
 $('daylight').addEventListener('input', (event) => {
   dayLevel = Number(event.target.value) / 100;
   sun.intensity = 0.55 + dayLevel * 3.5;
@@ -727,12 +941,13 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); $('saveBtn').click(); return; }
+  if (event.key === 'Escape' && fpsMode) { exitFpsView(); return; }
   if (event.key === 'Escape' && playing) { stopGame(); return; }
   if (!editing && /^[1-9]$/.test(event.key)) {
     const tool = document.querySelector(`[data-shortcut="${event.key}"]`);
     if (tool) setTool(tool.dataset.tool);
   }
-  if (playing) {
+  if (playing || fpsMode) {
     keyState.add(event.key.toLowerCase());
     if (event.key.startsWith('Arrow') || event.key === ' ') event.preventDefault();
   }
@@ -753,6 +968,7 @@ window.addEventListener('hashchange', () => {
 function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.04);
+  if (fpsMode && !playing) updateFpsCamera(delta);
   updateGame(delta);
   controls.update();
   renderer.render(scene, camera);
@@ -800,4 +1016,5 @@ resizeRenderer();
 updateHistoryButtons();
 updateStats();
 setTool('block');
+renderOutliner();
 animate();

@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 const $ = (id) => document.getElementById(id);
 const view = $('view');
@@ -60,6 +64,11 @@ const definitions = {
   water: { name: 'Eau', color: '#478da0', solid: false }
 };
 const blocks = new Map();
+const importedAssets = new Map();
+const stlLoader = new STLLoader();
+const objLoader = new OBJLoader();
+const gltfLoader = new GLTFLoader();
+const fbxLoader = new FBXLoader();
 const undoStack = [];
 const redoStack = [];
 const keyState = new Set();
@@ -71,6 +80,7 @@ let width = 18;
 let depth = 14;
 let maxHeight = 12;
 let selectedType = 'block';
+let selectedAssetId = null;
 let selectedColor = definitions.block.color;
 let projectName = 'Jardin suspendu';
 let gameMode = 'platformer';
@@ -89,6 +99,9 @@ let dayLevel = 0.8;
 const cameraDirection = new THREE.Vector3();
 const cameraRight = new THREE.Vector3();
 let outlinerRefreshQueued = false;
+let scriptWorker = null;
+let scriptWorkerUrl = null;
+let scriptTimer = 0;
 
 const groundMaterial = new THREE.MeshStandardMaterial({ color: terrainStyles[terrain].color, roughness: 0.92 });
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), groundMaterial);
@@ -216,14 +229,142 @@ function setBlockRaw(block) {
   scene.add(entry.mesh);
 }
 
+function objectHitTargets() {
+  return [
+    ...Array.from(blocks.values(), (block) => block.mesh),
+    ...Array.from(importedAssets.values(), (asset) => asset.object)
+  ];
+}
+
+function markAssetObject(object, id) {
+  object.traverse((child) => {
+    child.userData.assetId = id;
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+}
+
+function removeImportedAsset(id) {
+  const asset = importedAssets.get(id);
+  if (!asset) return false;
+  scene.remove(asset.object);
+  disposeTree(asset.object);
+  importedAssets.delete(id);
+  if (selectedAssetId === id) selectedAssetId = null;
+  return true;
+}
+
+function addImportedAsset(descriptor, object) {
+  const id = descriptor.id || crypto.randomUUID?.() || `asset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const root = new THREE.Group();
+  root.name = descriptor.name || descriptor.fileName || 'Modèle importé';
+  root.add(object);
+  const bounds = new THREE.Box3().setFromObject(root);
+  const size = bounds.getSize(new THREE.Vector3());
+  const largestDimension = Math.max(size.x, size.y, size.z, 0.001);
+  const fitScale = descriptor.scale?.[0] ? Number(descriptor.scale[0]) : Math.min(1, 3 / largestDimension);
+  root.scale.set(
+    descriptor.scale?.[0] ?? fitScale,
+    descriptor.scale?.[1] ?? fitScale,
+    descriptor.scale?.[2] ?? fitScale
+  );
+  const center = bounds.getCenter(new THREE.Vector3());
+  const fitPosition = [worldX(Math.floor(width / 2)), 0, worldZ(Math.floor(depth / 2))];
+  root.position.set(...(descriptor.position || [
+    fitPosition[0] - center.x * fitScale,
+    -bounds.min.y * fitScale,
+    fitPosition[2] - center.z * fitScale
+  ]));
+  if (descriptor.rotation) root.rotation.set(...descriptor.rotation);
+  markAssetObject(root, id);
+  const asset = {
+    id,
+    name: descriptor.name || descriptor.fileName || 'Modèle importé',
+    fileName: descriptor.fileName || 'modele',
+    format: descriptor.format || 'glb',
+    sourceData: descriptor.sourceData || '',
+    object: root
+  };
+  root.name = asset.name;
+  importedAssets.set(id, asset);
+  scene.add(root);
+  return asset;
+}
+
+async function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error(`Lecture impossible : ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function decodeDataUrl(dataUrl) {
+  const encoded = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer;
+}
+
+async function parseAsset(fileName, sourceData) {
+  const format = fileName.split('.').pop().toLowerCase();
+  const buffer = decodeDataUrl(sourceData);
+  let object;
+  if (format === 'stl') {
+    const geometry = stlLoader.parse(buffer);
+    geometry.computeVertexNormals();
+    object = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: '#a5ada6', roughness: 0.58, metalness: 0.16 }));
+  } else if (format === 'obj') {
+    object = objLoader.parse(new TextDecoder().decode(buffer));
+  } else if (format === 'gltf' || format === 'glb') {
+    object = (await gltfLoader.parseAsync(buffer, '')).scene;
+  } else if (format === 'fbx') {
+    object = fbxLoader.parse(buffer, '');
+  } else {
+    throw new Error('Format non pris en charge. Utilise STL, OBJ, GLTF, GLB ou FBX.');
+  }
+  return { format, object };
+}
+
+async function importModelFile(file) {
+  const format = file.name.split('.').pop().toLowerCase();
+  if (!['stl', 'obj', 'gltf', 'glb', 'fbx'].includes(format)) {
+    throw new Error(`${file.name} : format non pris en charge.`);
+  }
+  if (file.size > 32 * 1024 * 1024) throw new Error(`${file.name} dépasse la limite de 32 Mo.`);
+  const sourceData = await readAsDataUrl(file);
+  const { object } = await parseAsset(file.name, sourceData);
+  const before = captureState();
+  const asset = addImportedAsset({ fileName: file.name, name: file.name.replace(/\.[^.]+$/, ''), format, sourceData }, object);
+  recordUndo(before);
+  selectedAssetId = asset.id;
+  hoveredKey = null;
+  selectAsset(asset.id);
+  focusAsset(asset);
+  commitChange(`${file.name} importé`);
+}
+
 function captureState() {
   return {
-    app: 'MiniGameStudio3D', version: 2, name: projectName, mode: gameMode, terrain, width, depth, maxHeight,
-    blocks: Array.from(blocks.values(), ({ x, y, z, type, color }) => ({ x, y, z, type, color }))
+    app: 'MiniGameStudio3D', version: 3, name: projectName, mode: gameMode, terrain, width, depth, maxHeight,
+    blocks: Array.from(blocks.values(), ({ x, y, z, type, color }) => ({ x, y, z, type, color })),
+    assets: Array.from(importedAssets.values(), (asset) => ({
+      id: asset.id, name: asset.name, fileName: asset.fileName, format: asset.format, sourceData: asset.sourceData,
+      position: asset.object.position.toArray(), rotation: asset.object.rotation.toArray(), scale: asset.object.scale.toArray()
+    })),
+    script: $('scriptEditor')?.value || ''
   };
 }
 
-function applyState(state) {
+async function applyState(state) {
+  const loadedAssets = await Promise.all((state.assets || []).map(async (descriptor) => ({
+    descriptor,
+    object: (await parseAsset(descriptor.fileName, descriptor.sourceData)).object
+  })));
   width = state.width;
   depth = state.depth;
   maxHeight = state.maxHeight;
@@ -244,10 +385,16 @@ function applyState(state) {
   ground.position.y = -0.055;
   buildGrid();
   for (const key of Array.from(blocks.keys())) removeBlockRaw(key);
+  for (const id of Array.from(importedAssets.keys())) removeImportedAsset(id);
   for (const block of state.blocks) setBlockRaw(block);
+  $('scriptEditor').value = typeof state.script === 'string' ? state.script.slice(0, 20000) : '';
+  for (const { descriptor, object } of loadedAssets) addImportedAsset(descriptor, object);
+  selectedAssetId = null;
+  hoveredKey = null;
   controls.target.set(0, 0, 0);
   updateCameraLimits();
   updateStats();
+  renderOutliner();
 }
 
 function recordUndo(before = captureState()) {
@@ -294,52 +441,60 @@ function updateStats() {
   $('coinCount').textContent = String(coins);
   $('solidCount').textContent = String(solids);
   $('worldSize').textContent = `${width} × ${depth}`;
-  $('objectCountStat').textContent = String(blocks.size);
+  $('objectCountStat').textContent = String(blocks.size + importedAssets.size);
   $('worldSizeStat').textContent = `${width} × ${depth}`;
 }
 
 function renderOutliner() {
   const list = $('outlinerList');
   const filter = $('sceneFilter').value.trim().toLocaleLowerCase();
-  const entries = Array.from(blocks.values())
-    .filter((block) => `${definitions[block.type].name} ${block.x + 1} ${block.y + 1} ${block.z + 1}`.toLocaleLowerCase().includes(filter))
-    .sort((a, b) => definitions[a.type].name.localeCompare(definitions[b.type].name) || a.z - b.z || a.y - b.y || a.x - b.x);
-  $('outlinerCount').textContent = String(blocks.size);
+  const entries = [
+    ...Array.from(blocks.values(), (block) => ({
+      id: `block:${block.key}`, typeName: definitions[block.type].name, color: block.color || definitions[block.type].color,
+      position: [worldX(block.x), block.y, worldZ(block.z)], sortPosition: [block.x, block.y, block.z], block
+    })),
+    ...Array.from(importedAssets.values(), (asset) => ({
+      id: `asset:${asset.id}`, typeName: asset.name, color: '#75a5b4', position: asset.object.position.toArray(), sortPosition: asset.object.position.toArray(), asset
+    }))
+  ].filter((entry) => `${entry.typeName} ${entry.position.join(' ')}`.toLocaleLowerCase().includes(filter))
+    .sort((a, b) => a.typeName.localeCompare(b.typeName) || a.sortPosition[2] - b.sortPosition[2] || a.sortPosition[1] - b.sortPosition[1] || a.sortPosition[0] - b.sortPosition[0]);
+  $('outlinerCount').textContent = String(blocks.size + importedAssets.size);
   list.replaceChildren();
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'outliner-empty';
-    empty.textContent = blocks.size ? 'Aucun objet correspondant.' : 'La scène est vide.';
+    empty.textContent = blocks.size + importedAssets.size ? 'Aucun objet correspondant.' : 'La scène est vide.';
     list.append(empty);
     return;
   }
   const fragment = document.createDocumentFragment();
-  for (const block of entries) {
+  for (const entry of entries) {
     const row = document.createElement('div');
-    row.className = `scene-row${block.key === hoveredKey ? ' selected' : ''}`;
+    const isSelected = entry.asset ? entry.asset.id === selectedAssetId : entry.block.key === hoveredKey;
+    row.className = `scene-row${isSelected ? ' selected' : ''}`;
     row.setAttribute('role', 'treeitem');
-    row.setAttribute('aria-selected', String(block.key === hoveredKey));
+    row.setAttribute('aria-selected', String(isSelected));
     const kind = document.createElement('span');
     kind.className = 'scene-kind';
-    kind.style.setProperty('--swatch', block.color || definitions[block.type].color);
-    kind.textContent = definitions[block.type].name.slice(0, 1);
+    kind.style.setProperty('--swatch', entry.color);
+    kind.textContent = entry.asset ? entry.asset.format.toUpperCase().slice(0, 1) : entry.typeName.slice(0, 1);
     const select = document.createElement('button');
     select.type = 'button';
     select.className = 'scene-select';
-    select.dataset.sceneSelect = block.key;
-    select.textContent = `${definitions[block.type].name}  ·  ${block.x + 1}, ${block.y + 1}, ${block.z + 1}`;
-    select.title = `Sélectionner ${definitions[block.type].name}`;
+    select.dataset.sceneSelect = entry.id;
+    select.textContent = entry.asset ? `${entry.typeName}  ·  ${entry.asset.format.toUpperCase()}` : `${entry.typeName}  ·  ${entry.block.x + 1}, ${entry.block.y + 1}, ${entry.block.z + 1}`;
+    select.title = `Sélectionner ${entry.typeName}`;
     const focus = document.createElement('button');
     focus.type = 'button';
     focus.className = 'scene-focus';
-    focus.dataset.sceneFocus = block.key;
+    focus.dataset.sceneFocus = entry.id;
     focus.textContent = '◎';
     focus.title = 'Centrer la caméra sur cet objet';
     focus.setAttribute('aria-label', focus.title);
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'scene-delete';
-    remove.dataset.sceneDelete = block.key;
+    remove.dataset.sceneDelete = entry.id;
     remove.textContent = '×';
     remove.title = 'Supprimer cet objet';
     remove.setAttribute('aria-label', remove.title);
@@ -361,7 +516,164 @@ function focusBlock(block) {
   controls.update();
 }
 
+function focusAsset(asset) {
+  if (fpsMode || playing) return;
+  const bounds = new THREE.Box3().setFromObject(asset.object);
+  const target = bounds.getCenter(new THREE.Vector3());
+  const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+  const distance = Math.max(4, sphere.radius * 2.8);
+  const offset = camera.position.clone().sub(controls.target);
+  if (offset.lengthSq() < 0.01) offset.set(1, 0.8, 1);
+  camera.position.copy(target).add(offset.normalize().multiplyScalar(distance));
+  controls.target.copy(target);
+  controls.enabled = true;
+  controls.update();
+}
+
+function selectAsset(id) {
+  const asset = importedAssets.get(id);
+  if (!asset) return;
+  selectedAssetId = id;
+  hoveredKey = null;
+  selectedType = 'select';
+  $('selectedType').textContent = asset.name;
+  $('selectedPosition').textContent = `X ${asset.object.position.x.toFixed(1)} · Y ${asset.object.position.y.toFixed(1)} · Z ${asset.object.position.z.toFixed(1)}`;
+  $('selectedPositionInfo').textContent = $('selectedPosition').textContent;
+  $('assetPositionX').value = asset.object.position.x.toFixed(2);
+  $('assetPositionY').value = asset.object.position.y.toFixed(2);
+  $('assetPositionZ').value = asset.object.position.z.toFixed(2);
+  $('assetRotationY').value = THREE.MathUtils.radToDeg(asset.object.rotation.y).toFixed(0);
+  $('assetScale').value = asset.object.scale.x.toFixed(2);
+  $('toolStatus').textContent = `${asset.name} sélectionné · transformations dans l’inspecteur`;
+  document.querySelectorAll('[data-tool]').forEach((button) => button.classList.toggle('active', button.dataset.tool === 'select'));
+  renderOutliner();
+}
+
+function updateSelectedAssetTransform() {
+  const asset = importedAssets.get(selectedAssetId);
+  if (!asset) return;
+  const values = ['assetPositionX', 'assetPositionY', 'assetPositionZ', 'assetRotationY', 'assetScale'].map((id) => Number($(id).value));
+  if (!values.every(Number.isFinite) || values[4] <= 0 || values[4] > 100) {
+    $('saveStatus').textContent = 'Transformation invalide';
+    return;
+  }
+  const before = captureState();
+  asset.object.position.set(values[0], values[1], values[2]);
+  asset.object.rotation.y = THREE.MathUtils.degToRad(values[3]);
+  asset.object.scale.setScalar(values[4]);
+  selectAsset(asset.id);
+  recordUndo(before);
+  commitChange('Transformation modifiée');
+}
+
+function setImportedColor(asset, color) {
+  asset.object.traverse((child) => {
+    if (!child.isMesh) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) if (material?.color) material.color.set(color);
+  });
+}
+
+function stopProjectScript(message = 'Script arrêté') {
+  if (scriptTimer) clearTimeout(scriptTimer);
+  scriptTimer = 0;
+  scriptWorker?.terminate();
+  scriptWorker = null;
+  if (scriptWorkerUrl) URL.revokeObjectURL(scriptWorkerUrl);
+  scriptWorkerUrl = null;
+  $('runScriptBtn').disabled = false;
+  $('stopScriptBtn').disabled = true;
+  if (message) $('saveStatus').textContent = message;
+}
+
+function applyScriptCommands(commands) {
+  if (!Array.isArray(commands)) return;
+  const before = captureState();
+  let changed = false;
+  for (const command of commands) {
+    if (!command || typeof command.id !== 'string') continue;
+    const assetId = command.id.startsWith('asset:') ? command.id.slice(6) : null;
+    const asset = assetId ? importedAssets.get(assetId) : null;
+    if (asset) {
+      if (command.action === 'move' && Array.isArray(command.values) && command.values.length === 3 && command.values.every(Number.isFinite)) asset.object.position.set(...command.values);
+      else if (command.action === 'rotate' && Number.isFinite(command.value)) asset.object.rotation.y = THREE.MathUtils.degToRad(command.value);
+      else if (command.action === 'scale' && Number.isFinite(command.value)) asset.object.scale.setScalar(THREE.MathUtils.clamp(command.value, 0.01, 100));
+      else if (command.action === 'color' && /^#[\da-f]{6}$/i.test(command.value)) setImportedColor(asset, command.value);
+      else continue;
+      changed = true;
+      continue;
+    }
+    if (command.id.startsWith('block:') && command.action === 'color' && /^#[\da-f]{6}$/i.test(command.value)) {
+      const blockKey = command.id.slice(6);
+      const block = blocks.get(blockKey);
+      if (!block) continue;
+      setBlockRaw({ ...block, color: command.value });
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  recordUndo(before);
+  if (selectedAssetId) selectAsset(selectedAssetId);
+  commitChange('Script appliqué');
+}
+
+function runProjectScript() {
+  stopProjectScript('Script relancé');
+  const source = `self.onmessage = ({ data }) => {
+    const commands = [];
+    const log = (...values) => postMessage({ type: 'log', values: values.map(String) });
+    const api = Object.freeze({
+      objects: Object.freeze(data.objects), log,
+      move: (id, x, y, z) => commands.push({ action: 'move', id, values: [x, y, z].map(Number) }),
+      rotate: (id, degrees) => commands.push({ action: 'rotate', id, value: Number(degrees) }),
+      scale: (id, value) => commands.push({ action: 'scale', id, value: Number(value) }),
+      color: (id, value) => commands.push({ action: 'color', id, value: String(value) })
+    });
+    try { new Function('api', '"use strict";\\n' + data.script)(api); postMessage({ type: 'done', commands }); }
+    catch (error) { postMessage({ type: 'error', message: String(error.stack || error) }); }
+  };`;
+  scriptWorkerUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+  scriptWorker = new Worker(scriptWorkerUrl);
+  $('scriptOutput').textContent = 'Exécution…';
+  $('runScriptBtn').disabled = true;
+  $('stopScriptBtn').disabled = false;
+  scriptWorker.onmessage = ({ data }) => {
+    if (data.type === 'log') $('scriptOutput').textContent += `\n${data.values.join(' ')}`;
+    if (data.type === 'error') {
+      $('scriptOutput').textContent += `\n${data.message}`;
+      stopProjectScript('Erreur de script');
+    }
+    if (data.type === 'done') {
+      applyScriptCommands(data.commands);
+      stopProjectScript('Script terminé');
+    }
+  };
+  scriptWorker.onerror = (event) => {
+    $('scriptOutput').textContent += `\n${event.message}`;
+    stopProjectScript('Erreur de script');
+  };
+  const objects = [
+    ...Array.from(blocks.values(), (block) => ({ id: `block:${block.key}`, name: definitions[block.type].name, position: [worldX(block.x), block.y, worldZ(block.z)] })),
+    ...Array.from(importedAssets.values(), (asset) => ({ id: `asset:${asset.id}`, name: asset.name, position: asset.object.position.toArray(), rotation: asset.object.rotation.toArray(), scale: asset.object.scale.toArray() }))
+  ];
+  scriptWorker.postMessage({ script: $('scriptEditor').value.slice(0, 20000), objects });
+  scriptTimer = setTimeout(() => {
+    $('scriptOutput').textContent += '\nArrêt de sécurité : délai de 2 secondes dépassé.';
+    stopProjectScript('Script arrêté après dépassement du délai');
+  }, 2000);
+}
+
 function nudgeSelected(axis, amount) {
+  if (selectedAssetId) {
+    const asset = importedAssets.get(selectedAssetId);
+    if (!asset || playing || fpsMode) return;
+    const before = captureState();
+    asset.object.position[axis] += amount;
+    selectAsset(asset.id);
+    recordUndo(before);
+    commitChange('Modèle déplacé');
+    return;
+  }
   const block = blocks.get(hoveredKey);
   if (!block || playing || fpsMode) return;
   const nextPosition = { x: block.x, y: block.y, z: block.z };
@@ -408,6 +720,10 @@ function makeBlank() {
   projectName = 'Nouveau monde';
   $('projectName').value = projectName;
   for (const key of Array.from(blocks.keys())) removeBlockRaw(key);
+  for (const id of Array.from(importedAssets.keys())) removeImportedAsset(id);
+  $('scriptEditor').value = '';
+  selectedAssetId = null;
+  hoveredKey = null;
   drawSample();
   commitChange('Nouveau monde créé');
 }
@@ -454,9 +770,9 @@ function getPointerCell(event) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObjects(Array.from(blocks.values(), (block) => block.mesh), true)[0];
-  if (selectedType === 'select' && hit) return { hit, blockKey: hit.object.userData.blockKey };
-  if (selectedType === 'erase' && hit) return { hit, blockKey: hit.object.userData.blockKey };
+  const hit = raycaster.intersectObjects(objectHitTargets(), true)[0];
+  if (selectedType === 'select' && hit) return { hit, blockKey: hit.object.userData.blockKey, assetId: hit.object.userData.assetId };
+  if (selectedType === 'erase' && hit) return { hit, blockKey: hit.object.userData.blockKey, assetId: hit.object.userData.assetId };
   let point = new THREE.Vector3();
   let y = Number($('elevation').value);
   if (hit && event.altKey) {
@@ -468,7 +784,7 @@ function getPointerCell(event) {
     if (!hit) return null;
     point.copy(hit.point);
   }
-  return { x: cellX(point.x), z: cellZ(point.z), y };
+  return { x: cellX(point.x), z: cellZ(point.z), y, assetId: hit?.object.userData.assetId };
 }
 
 function applyPointer(event) {
@@ -476,11 +792,13 @@ function applyPointer(event) {
   const cell = getPointerCell(event);
   if (!cell) return;
   if (selectedType === 'select') {
-    if (cell.blockKey) selectBlock(cell.blockKey);
+    if (cell.assetId) selectAsset(cell.assetId);
+    else if (cell.blockKey) selectBlock(cell.blockKey);
     return;
   }
   if (selectedType === 'erase') {
-    if (cell.blockKey && removeBlockRaw(cell.blockKey)) changedDuringGesture();
+    if (cell.assetId && removeImportedAsset(cell.assetId)) changedDuringGesture();
+    else if (cell.blockKey && removeBlockRaw(cell.blockKey)) changedDuringGesture();
     return;
   }
   if (cell.x === undefined || !inBounds(cell.x, cell.y, cell.z)) return;
@@ -498,10 +816,16 @@ function changedDuringGesture() {
 function selectBlock(key) {
   const block = blocks.get(key);
   if (!block) return;
+  selectedAssetId = null;
   selectedType = 'select';
   $('selectedType').textContent = definitions[block.type].name;
   $('selectedPosition').textContent = `X ${block.x + 1} · Y ${block.y + 1} · Z ${block.z + 1}`;
   $('selectedPositionInfo').textContent = `X ${block.x + 1} · Y ${block.y + 1} · Z ${block.z + 1}`;
+  $('assetPositionX').value = worldX(block.x).toFixed(2);
+  $('assetPositionY').value = block.y.toFixed(2);
+  $('assetPositionZ').value = worldZ(block.z).toFixed(2);
+  $('assetRotationY').value = '0';
+  $('assetScale').value = '1';
   $('paintColor').value = block.color || definitions[block.type].color;
   hoveredKey = key;
   document.querySelectorAll('[data-tool]').forEach((button) => button.classList.remove('active'));
@@ -521,7 +845,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObjects(Array.from(blocks.values(), (block) => block.mesh), true)[0];
+  const hit = raycaster.intersectObjects(objectHitTargets(), true)[0];
   const key = hit?.object.userData.blockKey || null;
   if (key !== hoveredKey) {
     if (hoveredKey && blocks.get(hoveredKey)) blocks.get(hoveredKey).mesh.scale.setScalar(1);
@@ -639,7 +963,7 @@ function resizeWorld() {
   commitChange('Monde redimensionné');
 }
 
-function loadProject(data) {
+async function loadProject(data) {
   let state;
   if (Array.isArray(data?.blocks)) {
     const nextWidth = Number(data.width);
@@ -650,7 +974,17 @@ function loadProject(data) {
       if (!block || !Number.isInteger(block.x) || !Number.isInteger(block.y) || !Number.isInteger(block.z) || !definitions[block.type] || block.x < 0 || block.x >= nextWidth || block.z < 0 || block.z >= nextDepth || block.y < 0 || block.y >= nextHeight) throw new Error('Un bloc du projet est invalide.');
       return { x: block.x, y: block.y, z: block.z, type: block.type, color: /^#[\da-f]{6}$/i.test(block.color || '') ? block.color : definitions[block.type].color };
     });
-    state = { width: nextWidth, depth: nextDepth, maxHeight: nextHeight, name: String(data.name || 'Projet importé').slice(0, 50), mode: ['platformer', 'explorer', 'racer'].includes(data.mode) ? data.mode : 'platformer', terrain: data.terrain, blocks: clean };
+    const assetData = Array.isArray(data.assets) ? data.assets : [];
+    const sourceBytes = assetData.reduce((total, asset) => total + (typeof asset?.sourceData === 'string' ? asset.sourceData.length : 0), 0);
+    const assetIds = assetData.map((asset) => asset?.id).filter(Boolean);
+    if (assetData.length > 100 || sourceBytes > 44_000_000 || new Set(assetIds).size !== assetIds.length || assetData.some((asset) => !asset || typeof asset.sourceData !== 'string' || !/^data:[^,]*;base64,/i.test(asset.sourceData) || !['stl', 'obj', 'gltf', 'glb', 'fbx'].includes(String(asset.format).toLowerCase()) || !String(asset.fileName).match(/\.(stl|obj|gltf|glb|fbx|fbx)$/i) || ['position', 'rotation', 'scale'].some((key) => asset[key] !== undefined && (!Array.isArray(asset[key]) || asset[key].length < 3 || !asset[key].slice(0, 3).every(Number.isFinite))))) throw new Error('La liste des modèles importés est invalide ou trop volumineuse.');
+    state = {
+      width: nextWidth, depth: nextDepth, maxHeight: nextHeight,
+      name: String(data.name || 'Projet importé').slice(0, 50),
+      mode: ['platformer', 'explorer', 'racer'].includes(data.mode) ? data.mode : 'platformer',
+      terrain: data.terrain, blocks: clean, assets: assetData,
+      script: typeof data.script === 'string' ? data.script.slice(0, 20000) : ''
+    };
   } else if (Array.isArray(data?.grid) && Number.isInteger(data.W) && Number.isInteger(data.H) && data.W >= 4 && data.H >= 4 && data.W <= 50 && data.H <= 50) {
     const legacy = [];
     const oldTypes = { 1: 'block', 2: 'coin', 3: 'hazard', 4: 'spawn', 5: 'goal', 6: 'platform', 7: 'rock' };
@@ -658,7 +992,7 @@ function loadProject(data) {
     state = { width: data.W, depth: data.H, maxHeight: 12, name: data.name || 'Projet importé', mode: 'platformer', terrain: 'grove', blocks: legacy };
   } else throw new Error('Fichier JSON MiniGame Studio invalide.');
   const before = captureState();
-  applyState(state);
+  await applyState(state);
   recordUndo(before);
   commitChange('Projet chargé');
 }
@@ -817,24 +1151,34 @@ function stopGame(completed = false) {
   updateHistoryButtons();
 }
 
-function undo() {
+async function undo() {
   if (!undoStack.length || playing) return;
   redoStack.push(captureState());
-  applyState(undoStack.pop());
+  await applyState(undoStack.pop());
   updateHistoryButtons();
   commitChange('Action annulée');
 }
 
-function redo() {
+async function redo() {
   if (!redoStack.length || playing) return;
   undoStack.push(captureState());
-  applyState(redoStack.pop());
+  await applyState(redoStack.pop());
   updateHistoryButtons();
   commitChange('Action rétablie');
 }
 
 function shareProject() {
-  const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(captureState()))));
+  const data = new TextEncoder().encode(JSON.stringify(captureState()));
+  if (data.length > 900_000) {
+    $('saveStatus').textContent = 'Projet trop volumineux pour un lien; exporte le JSON';
+    return;
+  }
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < data.length; offset += chunkSize) {
+    binary += String.fromCharCode(...data.subarray(offset, offset + chunkSize));
+  }
+  const encoded = btoa(binary);
   const url = `${location.origin}${location.pathname}#projet=${encoded}`;
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(url).then(() => {
@@ -851,8 +1195,12 @@ $('undoBtn').onclick = undo;
 $('redoBtn').onclick = redo;
 $('newBtn').onclick = makeBlank;
 $('saveBtn').onclick = () => {
-  localStorage.setItem('mini-game-studio-3d', JSON.stringify(captureState()));
-  $('saveStatus').textContent = 'Sauvegarde locale effectuée';
+  try {
+    localStorage.setItem('mini-game-studio-3d', JSON.stringify(captureState()));
+    $('saveStatus').textContent = 'Sauvegarde locale effectuée';
+  } catch {
+    $('saveStatus').textContent = 'Stockage local plein; exporte le projet en JSON';
+  }
 };
 $('exportBtn').onclick = () => download(`${safeFilename(projectName)}.json`, JSON.stringify(captureState(), null, 2), 'application/json');
 $('exportGameBtn').onclick = exportStandalone;
@@ -862,17 +1210,69 @@ $('importFile').onchange = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
   try {
-    loadProject(JSON.parse(await file.text()));
+    await loadProject(JSON.parse(await file.text()));
   } catch (error) {
     $('saveStatus').textContent = error.message || 'Fichier de projet invalide';
   }
   event.target.value = '';
 };
+$('assetImportBtn').onclick = () => $('assetFiles').click();
+$('assetFiles').onchange = async (event) => {
+  const files = Array.from(event.target.files || []);
+  for (const file of files) {
+    try {
+      await importModelFile(file);
+    } catch (error) {
+      $('saveStatus').textContent = error.message || `Import impossible : ${file.name}`;
+    }
+  }
+  event.target.value = '';
+};
+view.addEventListener('dragover', (event) => {
+  event.preventDefault();
+  document.querySelector('.stage').classList.add('drop-target');
+});
+view.addEventListener('dragleave', (event) => {
+  if (!view.contains(event.relatedTarget)) document.querySelector('.stage').classList.remove('drop-target');
+});
+view.addEventListener('drop', async (event) => {
+  event.preventDefault();
+  document.querySelector('.stage').classList.remove('drop-target');
+  for (const file of Array.from(event.dataTransfer.files)) {
+    try {
+      await importModelFile(file);
+    } catch (error) {
+      $('saveStatus').textContent = error.message || `Import impossible : ${file.name}`;
+    }
+  }
+});
 $('playBtn').onclick = startGame;
 $('stopBtn').onclick = () => stopGame();
+$('runScriptBtn').onclick = runProjectScript;
+$('stopScriptBtn').onclick = () => stopProjectScript();
+$('scriptEditor').addEventListener('input', () => commitChange('Script modifié'));
+$('scriptEditor').addEventListener('keydown', (event) => {
+  if (event.key === 'Tab') {
+    event.preventDefault();
+    const start = event.currentTarget.selectionStart;
+    const end = event.currentTarget.selectionEnd;
+    event.currentTarget.setRangeText('  ', start, end, 'end');
+  }
+});
+for (const id of ['assetPositionX', 'assetPositionY', 'assetPositionZ', 'assetRotationY', 'assetScale']) {
+  $(id).addEventListener('change', updateSelectedAssetTransform);
+}
 $('paintColor').addEventListener('input', (event) => {
   selectedColor = event.target.value;
-  if (selectedType === 'select' && hoveredKey) {
+  if (selectedAssetId) {
+    const asset = importedAssets.get(selectedAssetId);
+    if (asset) {
+      const before = captureState();
+      setImportedColor(asset, selectedColor);
+      recordUndo(before);
+      commitChange('Couleur du modèle modifiée');
+    }
+  } else if (selectedType === 'select' && hoveredKey) {
     const block = blocks.get(hoveredKey);
     if (block) {
       const before = captureState();
@@ -896,20 +1296,38 @@ $('outlinerList').addEventListener('click', (event) => {
   const focus = event.target.closest('[data-scene-focus]');
   const remove = event.target.closest('[data-scene-delete]');
   if (select) {
-    const block = blocks.get(select.dataset.sceneSelect);
-    if (block) {
-      selectBlock(block.key);
-      focusBlock(block);
+    const id = select.dataset.sceneSelect;
+    if (id.startsWith('asset:')) {
+      const asset = importedAssets.get(id.slice(6));
+      if (asset) {
+        selectAsset(asset.id);
+        focusAsset(asset);
+      }
+    } else {
+      const block = blocks.get(id.slice(6));
+      if (block) {
+        selectBlock(block.key);
+        focusBlock(block);
+      }
     }
   } else if (focus) {
-    const block = blocks.get(focus.dataset.sceneFocus);
-    if (block) focusBlock(block);
+    const id = focus.dataset.sceneFocus;
+    if (id.startsWith('asset:')) {
+      const asset = importedAssets.get(id.slice(6));
+      if (asset) focusAsset(asset);
+    } else {
+      const block = blocks.get(id.slice(6));
+      if (block) focusBlock(block);
+    }
   } else if (remove) {
-    const key = remove.dataset.sceneDelete;
-    if (!blocks.has(key)) return;
+    const id = remove.dataset.sceneDelete;
+    const assetId = id.startsWith('asset:') ? id.slice(6) : null;
+    const key = id.startsWith('block:') ? id.slice(6) : null;
+    if (assetId ? !importedAssets.has(assetId) : !blocks.has(key)) return;
     const before = captureState();
-    removeBlockRaw(key);
-    if (hoveredKey === key) {
+    if (assetId) removeImportedAsset(assetId);
+    else removeBlockRaw(key);
+    if ((assetId && selectedAssetId === null) || (key && hoveredKey === key)) {
       hoveredKey = null;
       $('selectedType').textContent = 'Aucun';
       $('selectedPosition').textContent = 'Aucun objet sélectionné';
@@ -954,11 +1372,11 @@ window.addEventListener('keydown', (event) => {
 });
 window.addEventListener('keyup', (event) => keyState.delete(event.key.toLowerCase()));
 window.addEventListener('blur', () => keyState.clear());
-window.addEventListener('hashchange', () => {
+window.addEventListener('hashchange', async () => {
   if (!location.hash.startsWith('#projet=')) return;
   try {
     const bytes = Uint8Array.from(atob(location.hash.slice(8)), (char) => char.charCodeAt(0));
-    loadProject(JSON.parse(new TextDecoder().decode(bytes)));
+    await loadProject(JSON.parse(new TextDecoder().decode(bytes)));
     history.replaceState(null, '', location.pathname + location.search);
   } catch {
     $('saveStatus').textContent = 'Lien de projet invalide';
@@ -999,7 +1417,7 @@ if (!loaded) {
   try {
     const saved = localStorage.getItem('mini-game-studio-3d');
     if (saved) {
-      applyState(JSON.parse(saved));
+      await applyState(JSON.parse(saved));
       loaded = true;
     }
   } catch {

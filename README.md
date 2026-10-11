@@ -1,4 +1,5 @@
 # 🎮 MiniGame Studio
+https://nitrox-creator.github.io/MiniGame-Studio/ 
 
 **MiniGame Studio** est un éditeur de jeux 2D directement dans ton navigateur ! Crée tes propres niveaux, teste-les instantanément et sauvegarde tes projets grâce à une interface moderne et intuitive.
 
@@ -31,12 +32,3 @@ Créer un petit studio de développement de jeux accessible à tous, permettant 
 
 **MiniGame Studio — Imagine. Construis. Joue.**
 
-## 🌐 Publier sur GitHub Pages
-
-L'éditeur est une page HTML autonome : aucune compilation, dépendance ou serveur n'est nécessaire.
-
-1. Envoie `index.html` sur la branche publiée de ton dépôt GitHub.
-2. Dans **Settings → Pages**, choisis **Deploy from a branch**, sélectionne la branche et le dossier `/ (root)`, puis enregistre.
-3. Ouvre l'adresse GitHub Pages affichée dans ces paramètres.
-
-Dans l'éditeur, **Exporter le jeu** télécharge également un fichier HTML autonome que tu peux publier ou partager séparément. Les projets enregistrés dans le navigateur restent propres à cet appareil; utilise l'export JSON pour les transférer.

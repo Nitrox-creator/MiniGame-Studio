@@ -1,177 +1,75 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MiniGame Studio</title>
-<style>
-:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2d;--panel2:#18233b;--line:#283653;--text:#edf3ff;--muted:#91a2c4;--accent:#7c6cff;--accent2:#36d6c5;--danger:#ff647c}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#1a2850 0,transparent 40%),var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
-button,input,select{font:inherit}button{border:1px solid var(--line);background:#1b2741;color:var(--text);padding:9px 12px;border-radius:10px;cursor:pointer;transition:.15s}button:hover{border-color:#6478a4;transform:translateY(-1px)}button.primary{background:linear-gradient(135deg,#7868ff,#5548d8);border-color:#8275ff}button.good{background:#103e43;border-color:#247d7a}button.danger{color:#ff9dad}button.active{outline:2px solid var(--accent2);border-color:var(--accent2)}input,select{background:#0c1426;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px;min-width:0}header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 22px;border-bottom:1px solid var(--line);background:#0b1020cc;position:sticky;top:0;z-index:5;backdrop-filter:blur(14px)}.brand{display:flex;align-items:center;gap:11px}.logo{width:39px;height:39px;border-radius:12px;background:linear-gradient(135deg,#8b7aff,#3de0cc);display:grid;place-items:center;color:#071321;font-size:21px;font-weight:900}.brand h1{font-size:17px;margin:0;letter-spacing:.2px}.brand small{display:block;color:var(--muted);font-size:11px}.header-actions{display:flex;gap:8px;flex-wrap:wrap}.wrap{max-width:1500px;margin:auto;padding:20px}.intro{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:4px 0 18px}.intro h2{margin:0 0 5px;font-size:clamp(23px,3vw,32px);letter-spacing:-.8px}.intro p{margin:0;color:var(--muted)}.pill{border:1px solid #314363;background:#15213a;color:#bfcaff;padding:6px 10px;border-radius:99px;font-size:12px;white-space:nowrap}.layout{display:grid;grid-template-columns:240px minmax(300px,1fr) 260px;gap:14px;align-items:start}.panel{background:linear-gradient(180deg,#141d32,#10182a);border:1px solid var(--line);border-radius:16px;overflow:hidden;min-width:0}.panel-head{padding:13px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}.panel-head h3{font-size:13px;margin:0;letter-spacing:.3px}.panel-body{padding:14px}.label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 8px}.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tool{display:flex;align-items:center;gap:8px;text-align:left;padding:9px 8px;font-size:12px}.swatch{width:18px;height:18px;border-radius:5px;border:1px solid #ffffff40;flex-shrink:0}.field{display:grid;gap:6px;margin-bottom:13px}.field label{font-size:12px;color:#bac8e2}.field input,.field select{width:100%}.muted{color:var(--muted)}.center{min-width:0}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.toolbar-group{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.canvas-wrap{position:relative;border:1px solid #314263;border-radius:14px;overflow:auto;background:#080e1c;min-height:350px;max-height:68vh;display:flex;align-items:flex-start;justify-content:flex-start;padding:12px}.canvas-wrap canvas{display:block;image-rendering:pixelated;max-width:none;border-radius:5px;cursor:crosshair;touch-action:none}.hint{font-size:12px;color:var(--muted);margin:10px 2px}.status{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:9px}.status span{display:flex;gap:5px;align-items:center}.dot{width:6px;height:6px;border-radius:50%;background:var(--accent2)}.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}.stat{padding:10px;background:#0d1628;border:1px solid var(--line);border-radius:11px}.stat strong{display:block;font-size:18px}.stat small{color:var(--muted);font-size:11px}.preview{background:#070d18;border:1px solid var(--line);border-radius:12px;overflow:hidden}.preview canvas{display:block;width:100%;height:auto;image-rendering:pixelated}.test-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.notice{background:#18243c;border:1px solid #34496d;padding:10px;border-radius:10px;color:#bdcbe7;font-size:12px}.notice strong{color:white}.footer{padding:20px;text-align:center;color:#65789d;font-size:11px}.hidden{display:none!important}.file-label{display:inline-flex;align-items:center;gap:6px}.kbd{padding:2px 5px;border:1px solid #435273;border-radius:5px;background:#111b2e;color:#d8e2fa;font-size:10px}
-@media(max-width:1050px){.layout{grid-template-columns:220px minmax(0,1fr)}.right-panel{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}.right-panel .panel-head{grid-column:1/-1}.right-panel .panel-body{min-width:0}.right-panel .panel-body+ .panel-body{border-left:1px solid var(--line)}}@media(max-width:700px){header{padding:12px;align-items:flex-start}.header-actions button{padding:8px;font-size:12px}.wrap{padding:12px}.intro{align-items:flex-start;flex-direction:column}.layout{grid-template-columns:1fr}.left-panel{order:2}.center{order:1}.right-panel{order:3;display:block}.right-panel .panel-body+ .panel-body{border-left:0;border-top:1px solid var(--line)}.canvas-wrap{min-height:280px;max-height:55vh}.brand small{display:none}}
-</style>
-</head>
-<body>
-<header>
-  <div class="brand"><div class="logo">M</div><div><h1>MiniGame Studio</h1><small>CREATE · TEST · REPEAT</small></div></div>
-  <div class="header-actions">
-    <button id="newBtn">＋ Nouveau</button>
-    <button id="saveBtn" class="good">↧ Sauvegarder</button>
-    <button id="exportBtn">⇧ Exporter</button>
-    <label class="file-label"><input id="importFile" type="file" accept=".json,application/json" hidden><button id="importBtn">⇩ Importer</button></label>
-  </div>
-</header>
-<main class="wrap">
-  <section class="intro"><div><h2>Donne vie à tes idées.</h2><p>Un petit studio de création de jeux, directement dans ton navigateur.</p></div><span class="pill">● Version 0.1 · Sauvegarde locale</span></section>
-  <div class="layout">
-    <aside class="panel left-panel">
-      <div class="panel-head"><h3>OUTILS & OBJETS</h3><span class="muted">01</span></div>
-      <div class="panel-body">
-        <p class="label">Mode de jeu</p>
-        <div class="field"><select id="gameMode"><option value="platformer">Plateformes</option><option value="topdown">Exploration 2D</option><option value="racer">Course vue du dessus</option></select></div>
-        <p class="label">Outil de dessin</p>
-        <div class="tool-grid" id="tools">
-          <button class="tool active" data-tile="1"><span class="swatch" style="background:#4e6d9c"></span>Bloc solide</button>
-          <button class="tool" data-tile="2"><span class="swatch" style="background:#f6bd60"></span>Pièce</button>
-          <button class="tool" data-tile="3"><span class="swatch" style="background:#f05d73"></span>Danger</button>
-          <button class="tool" data-tile="4"><span class="swatch" style="background:#35c8b5"></span>Départ</button>
-          <button class="tool" data-tile="5"><span class="swatch" style="background:#9d8cff"></span>Objectif</button>
-          <button class="tool" data-tile="6"><span class="swatch" style="background:#667085"></span>Route</button>
-          <button class="tool" data-tile="7"><span class="swatch" style="background:#8e9aaa"></span>Décor</button>
-          <button class="tool" data-tile="0"><span class="swatch" style="background:#0b1221"></span>Gomme</button>
-        </div>
-        <div style="height:18px"></div>
-        <p class="label">Dimensions de la carte</p>
-        <div class="field"><label for="mapWidth">Largeur (cases)</label><input id="mapWidth" type="number" min="10" max="60" value="24"></div>
-        <div class="field"><label for="mapHeight">Hauteur (cases)</label><input id="mapHeight" type="number" min="8" max="30" value="14"></div>
-        <button id="resizeBtn" style="width:100%">Redimensionner la carte</button>
-        <div style="height:16px"></div>
-        <div class="field"><label for="projectName">Nom du projet</label><input id="projectName" maxlength="50" value="Mon premier niveau"></div>
-        <div class="notice">Astuce : clique ou glisse sur la grille pour dessiner. Les changements sont gardés dans ce navigateur quand tu sauvegardes.</div>
-      </div>
-    </aside>
-    <section class="center">
-      <div class="toolbar">
-        <div class="toolbar-group"><button id="testBtn" class="primary">▶ Tester le jeu</button><button id="stopBtn" class="hidden">■ Arrêter</button><button id="exportGameBtn">↗ Exporter le jeu</button></div>
-        <div class="toolbar-group"><button id="clearBtn">Effacer la carte</button><span class="pill" id="selectedLabel">Outil : Bloc solide</span></div>
-      </div>
-      <div class="canvas-wrap"><canvas id="editor" width="720" height="420" aria-label="Grille d'édition"></canvas></div>
-      <div class="status"><span><i class="dot"></i><span id="saveStatus">Modifications non sauvegardées</span></span><span>Grille : <b id="gridSize">24 × 14</b></span><span>Contrôles en test : <kbd class="kbd">←</kbd> <kbd class="kbd">→</kbd> <kbd class="kbd">Espace</kbd></span></div>
-      <p class="hint">Le mode Plateformes gère les sauts et les collisions. Exploration permet de marcher dans la carte. Course propose une voiture à diriger.</p>
-    </section>
-    <aside class="panel right-panel">
-      <div class="panel-head"><h3>APERÇU & INFOS</h3><span class="muted">02</span></div>
-      <div class="panel-body">
-        <div class="stats"><div class="stat"><strong id="blocksStat">0</strong><small>Objets placés</small></div><div class="stat"><strong id="coinsStat">0</strong><small>Pièces</small></div></div>
-        <p class="label">Aperçu du niveau</p>
-        <div class="preview"><canvas id="preview" width="360" height="210"></canvas></div>
-        <div style="height:17px"></div>
-        <p class="label">Test rapide</p>
-        <div class="test-controls"><button id="leftBtn">← Gauche</button><button id="rightBtn">Droite →</button><button id="jumpBtn">↑ Sauter</button></div>
-        <p class="hint">Sur ordinateur : flèches ou A/D pour bouger, espace pour sauter. Sur mobile, utilise les boutons ci-dessus pendant le test.</p>
-        <div class="notice" id="gameMessage"><strong>Prêt à créer ?</strong><br>Place un départ, quelques blocs et un objectif, puis lance le test.</div>
-      </div>
-      <div class="panel-body">
-        <p class="label">Légende</p>
-        <div style="display:grid;gap:7px;font-size:12px;color:#b8c7e3">
-          <span><span class="swatch" style="display:inline-block;vertical-align:middle;background:#4e6d9c"></span> Sol / mur</span>
-          <span><span class="swatch" style="display:inline-block;vertical-align:middle;background:#f6bd60"></span> Pièce à ramasser</span>
-          <span><span class="swatch" style="display:inline-block;vertical-align:middle;background:#f05d73"></span> Danger</span>
-          <span><span class="swatch" style="display:inline-block;vertical-align:middle;background:#35c8b5"></span> Départ du joueur</span>
-          <span><span class="swatch" style="display:inline-block;vertical-align:middle;background:#9d8cff"></span> Objectif</span>
-        </div>
-      </div>
-    </aside>
-  </div>
-</main>
-<div class="footer">MiniGame Studio · Fait pour expérimenter · Tes projets restent sur ton appareil, sauf si tu exportes et partages le fichier.</div>
-<script>
-(() => {
-const $ = id => document.getElementById(id);
-const editor=$('editor'), ctx=editor.getContext('2d'), preview=$('preview'), pctx=preview.getContext('2d');
-const colors={0:'#0b1221',1:'#4e6d9c',2:'#f6bd60',3:'#f05d73',4:'#35c8b5',5:'#9d8cff',6:'#667085',7:'#8e9aaa'};
-const names={0:'Gomme',1:'Bloc solide',2:'Pièce',3:'Danger',4:'Départ',5:'Objectif',6:'Route',7:'Décor'};
-let W=24,H=14,tile=1,grid=[],mode='platformer',dirty=true,running=false,player=null,keys={},last=0,raf=0,collected=new Set(),messageTimer=0;
-const cell=30;
-function blank(w,h){return Array.from({length:h},()=>Array(w).fill(0))}
-function seed(){grid=blank(W,H);for(let x=0;x<W;x++)grid[H-1][x]=1;grid[H-1][2]=4;grid[H-1][W-3]=5;for(let x=5;x<9;x++)grid[H-4][x]=1;grid[H-5][7]=2;grid[H-2][12]=3;grid[H-1][15]=2;dirty=true;drawAll()}
-function fitCanvas(){editor.width=W*cell;editor.height=H*cell;$('gridSize').textContent=`${W} × ${H}`}
-function drawScene(c, target, scale=1, showGrid=false){const cw=target.width,ch=target.height;c.clearRect(0,0,cw,ch);c.fillStyle='#091120';c.fillRect(0,0,cw,ch);
-const cwCell=cw/W,chCell=ch/H;
-for(let y=0;y<H;y++)for(let x=0;x<W;x++){const t=grid[y][x],px=x*cwCell,py=y*chCell;
-if(t!==0&&!(running&&collected.has(y*W+x))){c.fillStyle=colors[t];if(t===2){c.beginPath();c.arc(px+cwCell/2,py+chCell/2,Math.min(cwCell,chCell)*.25,0,Math.PI*2);c.fillStyle=colors[2];c.fill();c.strokeStyle='#fff1b8';c.lineWidth=1;c.stroke()}
-else if(t===3){c.beginPath();c.moveTo(px+cwCell*.12,py+chCell*.88);c.lineTo(px+cwCell*.5,py+chCell*.12);c.lineTo(px+cwCell*.88,py+chCell*.88);c.closePath();c.fill();c.strokeStyle='#ffb5c0';c.stroke()}
-else if(t===4||t===5){c.fillRect(px+cwCell*.12,py+chCell*.12,cwCell*.76,chCell*.76);c.fillStyle='#08101d';c.font=`bold ${Math.max(8,Math.min(cwCell,chCell)*.55)}px system-ui`;c.textAlign='center';c.textBaseline='middle';c.fillText(t===4?'S':'★',px+cwCell/2,py+chCell/2)}
-else{c.fillRect(px+1,py+1,cwCell-2,chCell-2);if(t===1){c.strokeStyle='#8fa9d2';c.lineWidth=Math.max(1,cwCell*.035);c.strokeRect(px+cwCell*.12,py+chCell*.12,cwCell*.76,chCell*.76)}else if(t===6){c.strokeStyle='#c8d0de';c.setLineDash([cwCell*.18,cwCell*.15]);c.beginPath();c.moveTo(px+cwCell/2,py);c.lineTo(px+cwCell/2,py+chCell);c.stroke();c.setLineDash([])}}
-}
-if(showGrid){c.strokeStyle='rgba(158,181,225,.16)';c.lineWidth=1;c.strokeRect(px,py,cwCell,chCell)}}
-if(running&&player){c.fillStyle=mode==='racer'?'#ff8c55':'#eff5ff';if(mode==='racer'){c.save();c.translate(player.x+player.w/2,player.y+player.h/2);c.rotate(player.angle||0);c.fillRect(-player.w/2,-player.h/2,player.w,player.h);c.fillStyle='#283653';c.fillRect(-player.w*.22,-player.h*.38,player.w*.44,player.h*.28);c.restore()}else{c.beginPath();c.roundRect(player.x,player.y,player.w,player.h,Math.min(6,player.w*.2));c.fill();c.fillStyle='#202d48';c.fillRect(player.x+player.w*.6,player.y+player.h*.22,Math.max(2,player.w*.13),Math.max(2,player.h*.13))}}
-}
-function drawAll(){fitCanvas();drawScene(ctx,editor,1,true);drawScene(pctx,preview,1,false);updateStats()}
-function updateStats(){let counts={};grid.flat().forEach(t=>counts[t]=(counts[t]||0)+1);$('blocksStat').textContent=grid.flat().filter(t=>t!==0).length;$('coinsStat').textContent=counts[2]||0}
-function changed(){dirty=true;$('saveStatus').textContent='Modifications non sauvegardées';drawAll()}
-function chooseTool(t){tile=t;document.querySelectorAll('[data-tile]').forEach(b=>b.classList.toggle('active',Number(b.dataset.tile)===t));$('selectedLabel').textContent='Outil : '+names[t]}
-function coords(e){const r=editor.getBoundingClientRect();return {x:Math.floor((e.clientX-r.left)*editor.width/r.width/cell),y:Math.floor((e.clientY-r.top)*editor.height/r.height/cell)}}
-function paint(e){if(running)return;const {x,y}=coords(e);if(x<0||y<0||x>=W||y>=H)return;let v=tile;if(v===4||v===5){for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++)if(grid[yy][xx]===v)grid[yy][xx]=0}grid[y][x]=v;changed()}
-let painting=false;editor.addEventListener('pointerdown',e=>{painting=true;editor.setPointerCapture(e.pointerId);paint(e)});editor.addEventListener('pointermove',e=>{if(painting)paint(e)});editor.addEventListener('pointerup',()=>painting=false);editor.addEventListener('pointercancel',()=>painting=false);
-document.querySelectorAll('[data-tile]').forEach(b=>b.addEventListener('click',()=>chooseTool(Number(b.dataset.tile))));
-function serialize(){return {app:'MiniGame Studio',version:1,name:$('projectName').value||'Mon niveau',mode,W,H,grid}}
-function save(){try{localStorage.setItem('minigame-studio-project',JSON.stringify(serialize()));dirty=false;$('saveStatus').textContent='Sauvegardé sur cet appareil ✓';showMessage('Projet sauvegardé','Tu peux revenir plus tard sur ce navigateur.')}catch(e){showMessage('Sauvegarde impossible','Le navigateur bloque peut-être le stockage local. Exporte plutôt ton projet en JSON.')}}
-function load(data){if(!data||!Array.isArray(data.grid)||!Number.isInteger(data.W)||!Number.isInteger(data.H)||data.W<5||data.H<5||data.W>80||data.H>40||data.grid.length>data.H||data.grid.some(row=>!Array.isArray(row)||row.length>data.W||row.some(value=>!Number.isInteger(value)||value<0||value>7)))throw Error('Fichier de projet invalide ou dimensions trop grandes.');W=data.W;H=data.H;grid=Array.from({length:H},(_,y)=>Array.from({length:W},(_,x)=>data.grid[y]?.[x]??0));mode=['platformer','topdown','racer'].includes(data.mode)?data.mode:'platformer';$('gameMode').value=mode;$('mapWidth').value=W;$('mapHeight').value=H;$('projectName').value=typeof data.name==='string'?data.name.slice(0,50):'Projet importé';stopGame();changed();dirty=false;$('saveStatus').textContent='Projet chargé';}
-function showMessage(title,body){$('gameMessage').innerHTML='<strong>'+escapeHtml(title)+'</strong><br>'+escapeHtml(body)}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-$('saveBtn').onclick=save;
-$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(serialize(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(($('projectName').value||'minigame').replace(/[^a-z0-9-_]/gi,'_'))+'.json';a.click();URL.revokeObjectURL(url);showMessage('Export terminé','Ton niveau a été exporté en fichier JSON.')};
-$('exportGameBtn').onclick=()=>{const project=JSON.stringify(serialize()).replace(/</g,'\\u003c');const html=`<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml($('projectName').value||'Mon jeu')}</title>
-<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#101820;color:#f5f2e9;font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;padding:20px}.game{width:min(100%,960px);text-align:center}h1{font-size:clamp(22px,4vw,34px);margin:0 0 12px}canvas{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;background:#101820;border:1px solid #50606a;touch-action:none}.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0}button{font:inherit;color:#fff;background:#245c54;border:1px solid #4ca596;border-radius:8px;padding:9px 14px;cursor:pointer}.controls{display:flex;justify-content:center;gap:10px;touch-action:none}.controls button{min-width:64px;min-height:52px;font-size:22px;user-select:none}.help{color:#aebbbd;font-size:13px;margin:10px 0}@media(min-width:700px){.controls{display:none}}</style></head>
-<body><main class="game"><h1 id="title"></h1><div class="bar"><span id="status" aria-live="polite"></span><button id="restart">Recommencer</button></div><canvas id="screen" aria-label="Jeu"></canvas><p class="help">Déplacement : flèches ou WASD · Saut : Espace</p><div class="controls"><button data-key="ArrowLeft" aria-label="Gauche">←</button><button data-key="ArrowUp" aria-label="Haut / sauter">↑</button><button data-key="ArrowDown" aria-label="Bas">↓</button><button data-key="ArrowRight" aria-label="Droite">→</button></div></main>
-<script>
-const level=${project},canvas=document.querySelector('#screen'),ctx=canvas.getContext('2d'),tileSize=32,keys={},collected=new Set();canvas.width=level.W*tileSize;canvas.height=level.H*tileSize;document.querySelector('#title').textContent=level.name||'Mon jeu';
-const colors=['#101820','#4e6d9c','#f6bd60','#f05d73','#35c8b5','#9d8cff','#667085','#8e9aaa'];let player,coins=0,ended=false,last=0;
-function reset(){const start=findTile(4)||{x:1,y:level.H-2};player={x:start.x*tileSize+5,y:start.y*tileSize+tileSize-25,w:22,h:25,vx:0,vy:0,angle:0,ground:false};coins=0;collected.clear();ended=false;status('À toi de jouer');draw()}
-function findTile(value){for(let y=level.H-1;y>=0;y--)for(let x=0;x<level.W;x++)if(level.grid[y]?.[x]===value)return{x,y};return null}
-function solid(px,py){if(px<0||px>=canvas.width||py<0||py>=canvas.height)return true;const value=level.grid[Math.floor(py/tileSize)]?.[Math.floor(px/tileSize)];return value===1||(level.mode==='racer'&&value===6)}
-function move(amount,axis){const steps=Math.max(1,Math.ceil(Math.abs(amount)/4)),step=amount/steps;for(let i=0;i<steps;i++){const x=player.x+(axis==='x'?step:0),y=player.y+(axis==='y'?step:0);if(solid(x+2,y+2)||solid(x+player.w-2,y+2)||solid(x+2,y+player.h-2)||solid(x+player.w-2,y+player.h-2)){if(axis==='y'){player.ground=step>0;player.vy=0}return}player.x=x;player.y=y}}
-function draw(){ctx.fillStyle='#101820';ctx.fillRect(0,0,canvas.width,canvas.height);for(let y=0;y<level.H;y++)for(let x=0;x<level.W;x++){const value=level.grid[y]?.[x]||0;if(!value||collected.has(y*level.W+x))continue;const px=x*tileSize,py=y*tileSize;ctx.fillStyle=colors[value];if(value===2){ctx.beginPath();ctx.arc(px+16,py+16,8,0,Math.PI*2);ctx.fill()}else if(value===3){ctx.beginPath();ctx.moveTo(px+4,py+28);ctx.lineTo(px+16,py+4);ctx.lineTo(px+28,py+28);ctx.fill()}else{ctx.fillRect(px+2,py+2,28,28);if(value===4||value===5){ctx.fillStyle='#101820';ctx.font='bold 17px system-ui';ctx.textAlign='center';ctx.fillText(value===4?'S':'★',px+16,py+22)}}}ctx.fillStyle=level.mode==='racer'?'#ff8c55':'#f5f2e9';ctx.save();ctx.translate(player.x+player.w/2,player.y+player.h/2);if(level.mode==='racer')ctx.rotate(player.angle);ctx.fillRect(-player.w/2,-player.h/2,player.w,player.h);ctx.restore()}
-function status(text){document.querySelector('#status').textContent=text}
-function finish(){const x=Math.floor((player.x+player.w/2)/tileSize),y=Math.floor((player.y+player.h/2)/tileSize),index=y*level.W+x,value=level.grid[y]?.[x];if(value===2&&!collected.has(index)){collected.add(index);coins++;status('Pièces : '+coins)}if(value===3){reset();status('Touché ! Retour au départ · Pièces : '+coins)}if(value===5){ended=true;status('Niveau terminé ! Pièces : '+coins)}}
-function frame(now){const dt=Math.min(.032,(now-last)/1000);last=now;if(!ended){const left=keys.ArrowLeft||keys.a,right=keys.ArrowRight||keys.d,up=keys.ArrowUp||keys.w,down=keys.ArrowDown||keys.s;if(level.mode==='racer'){player.angle+=((right?1:0)-(left?1:0))*2.8*dt;const speed=((up?1:0)-(down?1:0))*150;move(Math.cos(player.angle-Math.PI/2)*speed*dt,'x');move(Math.sin(player.angle-Math.PI/2)*speed*dt,'y')}else if(level.mode==='topdown'){move(((right?1:0)-(left?1:0))*180*dt,'x');move(((down?1:0)-(up?1:0))*180*dt,'y')}else{player.vx=((right?1:0)-(left?1:0))*190;player.vy+=850*dt;move(player.vx*dt,'x');player.ground=false;move(player.vy*dt,'y');if(up&&player.ground)player.vy=-370}player.x=Math.max(0,Math.min(canvas.width-player.w,player.x));player.y=Math.min(canvas.height-player.h,player.y);finish()}draw();requestAnimationFrame(frame)}
-window.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(event.key))event.preventDefault();keys[event.key.toLowerCase()]=true;if(event.key.startsWith('Arrow'))keys[event.key]=true});window.addEventListener('keyup',event=>{keys[event.key.toLowerCase()]=false;if(event.key.startsWith('Arrow'))keys[event.key]=false});document.querySelectorAll('[data-key]').forEach(button=>{const key=button.dataset.key;button.addEventListener('pointerdown',event=>{event.preventDefault();keys[key]=true;button.setPointerCapture(event.pointerId)});for(const name of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(name,()=>keys[key]=false)});document.querySelector('#restart').onclick=reset;reset();requestAnimationFrame(frame);
-<\/script></body></html>`;const blob=new Blob([html],{type:'text/html'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=(($('projectName').value||'mon-jeu').replace(/[^a-z0-9-_]/gi,'_'))+'.html';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);showMessage('Jeu exporté','Le fichier HTML se lance seul, même sans MiniGame Studio.')};
-$('importBtn').onclick=()=>$('importFile').click();
-$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{load(JSON.parse(await f.text()));showMessage('Import réussi',f.name+' est prêt à être modifié.')}catch(err){showMessage('Import impossible',err.message||'Vérifie le fichier JSON.')}e.target.value=''};
-$('newBtn').onclick=()=>{if(dirty&&!confirm('Tes changements ne sont pas sauvegardés. Créer un nouveau niveau quand même ?'))return;W=24;H=14;$('mapWidth').value=W;$('mapHeight').value=H;$('projectName').value='Nouveau niveau';mode=$('gameMode').value;stopGame();seed();changed()};
-$('resizeBtn').onclick=()=>{const w=Math.max(10,Math.min(60,parseInt($('mapWidth').value)||24)),h=Math.max(8,Math.min(30,parseInt($('mapHeight').value)||14));const next=blank(w,h);for(let y=0;y<Math.min(H,h);y++)for(let x=0;x<Math.min(W,w);x++)next[y][x]=grid[y][x];W=w;H=h;grid=next;$('mapWidth').value=W;$('mapHeight').value=H;changed()};
-$('clearBtn').onclick=()=>{if(confirm('Effacer tous les objets de la carte ?')){grid=blank(W,H);changed()}};
-$('gameMode').onchange=e=>{mode=e.target.value;changed()};
-$('projectName').oninput=()=>{dirty=true;$('saveStatus').textContent='Modifications non sauvegardées'};
-function findTile(t){for(let y=H-1;y>=0;y--)for(let x=0;x<W;x++)if(grid[y][x]===t)return{x,y};return null}
-function solidAt(px,py){if(px<0||px>=W*cell||py>=H*cell)return true;if(py<0)return false;const x=Math.floor(px/cell),y=Math.floor(py/cell);return grid[y]?.[x]===1||(mode==='racer'&&grid[y]?.[x]===6)}
-function startGame(){if(running){return}running=true;collected=new Set();const s=findTile(4)||{x:1,y:H-2};player={x:s.x*cell+3,y:s.y*cell-5,w:mode==='racer'?20:22,h:mode==='racer'?30:25,vx:0,vy:0,ground:false,angle:0,coins:0};if(mode==='racer'){player.w=20;player.h=30} $('testBtn').classList.add('hidden');$('stopBtn').classList.remove('hidden');showMessage('Partie lancée !',mode==='platformer'?'Flèches ou A/D pour bouger, espace pour sauter.':'Utilise les flèches ou A/D pour te déplacer.');last=performance.now();raf=requestAnimationFrame(loop)}
-function stopGame(){running=false;if(raf)cancelAnimationFrame(raf);player=null;$('testBtn').classList.remove('hidden');$('stopBtn').classList.add('hidden');drawAll()}
-$('testBtn').onclick=startGame;$('stopBtn').onclick=stopGame;
-function keyDown(e){if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault();keys[e.key.toLowerCase()]=true;if(running&&mode==='platformer'&&(e.key===' '||e.key==='ArrowUp'||e.key.toLowerCase()==='w')&&player.ground)player.vy=-370}
-function keyUp(e){keys[e.key.toLowerCase()]=false}
-window.addEventListener('keydown',keyDown);window.addEventListener('keyup',keyUp);window.addEventListener('blur',()=>keys={});
-$('leftBtn').onpointerdown=()=>keys['arrowleft']=true;$('leftBtn').onpointerup=$('leftBtn').onpointerleave=()=>keys['arrowleft']=false;
-$('rightBtn').onpointerdown=()=>keys['arrowright']=true;$('rightBtn').onpointerup=$('rightBtn').onpointerleave=()=>keys['arrowright']=false;
-$('jumpBtn').onpointerdown=()=>{if(running&&mode==='platformer'&&player.ground)player.vy=-370};
-function loop(now){if(!running)return;const dt=Math.min(.032,(now-last)/1000);last=now;updatePlayer(dt);drawScene(ctx,editor,1,true);drawScene(pctx,preview,1,false);raf=requestAnimationFrame(loop)}
-function updatePlayer(dt){if(!player)return;const left=keys.arrowleft||keys.a,right=keys.arrowright||keys.d,up=keys.arrowup||keys.w,down=keys.arrowdown||keys.s;
-if(mode==='racer'){const turn=(right?1:0)-(left?1:0);player.angle=(player.angle||0)+turn*2.8*dt;const forward=(up?1:0)-(down?1:0);player.vx=Math.cos(player.angle-Math.PI/2)*forward*150;player.vy=Math.sin(player.angle-Math.PI/2)*forward*150;let nx=player.x+player.vx*dt,ny=player.y+player.vy*dt;if(!solidAt(nx+player.w/2,ny+player.h/2)){player.x=nx;player.y=ny}else{player.vx=player.vy=0}}
-else{const speed=mode==='topdown'?180:190;player.vx=((right?1:0)-(left?1:0))*speed;if(mode==='topdown'){player.vy=((down?1:0)-(up?1:0))*speed;const nx=player.x+player.vx*dt,ny=player.y+player.vy*dt;if(!solidAt(nx+player.w/2,player.y+player.h/2))player.x=nx;if(!solidAt(player.x+player.w/2,ny+player.h/2))player.y=ny}
-else{player.vy+=850*dt;let nx=player.x+player.vx*dt;if(!solidAt(nx+(player.vx>0?player.w:0),player.y+player.h*.7)&&!solidAt(nx+(player.vx>0?player.w:0),player.y+player.h-2))player.x=nx;let ny=player.y+player.vy*dt;player.ground=false;if(player.vy>=0){if(solidAt(player.x+3,ny+player.h)||solidAt(player.x+player.w-3,ny+player.h)){ny=Math.floor((ny+player.h)/cell)*cell-player.h;player.vy=0;player.ground=true}}else if(solidAt(player.x+3,ny)||solidAt(player.x+player.w-3,ny)){ny=Math.floor(ny/cell+1)*cell;player.vy=0}player.y=ny}}
-player.x=Math.max(0,Math.min(W*cell-player.w,player.x));player.y=Math.max(0,Math.min(H*cell-player.h,player.y));
-const cx=Math.floor((player.x+player.w/2)/cell),cy=Math.floor((player.y+player.h/2)/cell),t=grid[cy]?.[cx];
-if(t===2&&!collected.has(cy*W+cx)){collected.add(cy*W+cx);player.coins++;showMessage('Pièce récupérée !',`Pièces : ${player.coins}`)}
-if(t===3){const s=findTile(4)||{x:1,y:H-2};player.x=s.x*cell+3;player.y=s.y*cell-5;player.vx=player.vy=0;showMessage('Oups !','Tu as touché un danger : retour au départ.')}
-if(t===5){showMessage('Niveau terminé !',`Bravo ! Pièces ramassées : ${player.coins}. Tu peux continuer ou arrêter le test.`);running=false;$('testBtn').classList.remove('hidden');$('stopBtn').classList.add('hidden')}
-if(player.y>H*cell){const s=findTile(4)||{x:1,y:H-2};player.x=s.x*cell;player.y=s.y*cell-5;player.vy=0}
-}
-try{const saved=localStorage.getItem('minigame-studio-project');if(saved)load(JSON.parse(saved));else seed()}catch(e){seed()}
-chooseTool(1);
-})();
-</script>
-</body>
-</html>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#18211d">
+  <meta name="description" content="MiniGame Studio, un éditeur de jeux 3D en voxels directement dans votre navigateur.">
+  <title>MiniGame Studio | Atelier 3D</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
+  </script>
+  <style>
+    :root{color-scheme:dark;--page:#171d1a;--panel:#202925;--panel-soft:#252f2a;--line:#38433c;--ink:#f0f0e8;--muted:#a3ada2;--acid:#d9e879;--mint:#83c9a2;--warm:#e2a66c;--red:#e98578;--mono:"DM Mono",monospace;--sans:"Manrope",sans-serif}
+    *{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh;background:var(--page);color:var(--ink);font:14px/1.45 var(--sans)}button,input,select{font:inherit}button{color:inherit}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acid);outline-offset:2px}button{border:1px solid var(--line);border-radius:5px;background:#2a342e;padding:8px 11px;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}button:hover{background:#344139;border-color:#657467}button:active{transform:translateY(1px)}button:disabled{opacity:.42;cursor:not-allowed}button.primary{background:var(--acid);border-color:var(--acid);color:#20271e;font-weight:800}button.primary:hover{background:#e4f294}button.subtle{background:transparent}button.icon{width:36px;height:36px;padding:0;font-size:16px}button.active{border-color:var(--acid);background:#394532;color:#f5f4da}input,select{min-width:0;width:100%;padding:8px 9px;color:var(--ink);background:#171e1a;border:1px solid var(--line);border-radius:4px}input[type=color]{height:36px;padding:3px}input[type=range]{accent-color:var(--acid);padding:0;border:0;background:transparent}input[type=checkbox]{width:auto;accent-color:var(--acid)}.topbar{height:62px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 20px;background:#1b231f;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:11px;min-width:0}.mark{width:34px;height:34px;display:grid;place-items:center;background:var(--acid);color:#20271e;font-size:19px;font-weight:800;border-radius:4px}.brand strong{display:block;font-size:14px}.brand small{display:block;color:var(--muted);font:10px var(--mono);text-transform:uppercase}.project-title{display:flex;align-items:center;gap:10px;flex:1;max-width:340px}.project-title input{font-weight:700;background:transparent;border-color:transparent}.project-title input:hover,.project-title input:focus{border-color:var(--line);background:#171e1a}.top-actions{display:flex;align-items:center;gap:7px}.save-state{color:var(--muted);font:10px var(--mono);margin-right:4px}.layout{height:calc(100vh - 62px);min-height:640px;display:grid;grid-template-columns:245px minmax(320px,1fr) 260px}.sidebar,.inspector{background:#1c2420;overflow:auto;scrollbar-color:#4b5b4f #1c2420;scrollbar-width:thin}.sidebar{border-right:1px solid var(--line)}.inspector{border-left:1px solid var(--line)}.section{padding:15px 15px 17px;border-bottom:1px solid #323c35}.section-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;color:#c9d0c7;font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase}.section-heading button{padding:0 4px;border:0;background:none;color:var(--muted);font-size:16px}.section.collapsed>:not(.section-heading){display:none}.tools{display:grid;grid-template-columns:1fr 1fr;gap:6px}.tool{min-height:54px;display:flex;align-items:center;gap:8px;text-align:left;padding:7px}.tool-swatch{width:18px;height:18px;flex:0 0 18px;border:1px solid #ffffff33;border-radius:3px;background:var(--swatch)}.tool-name{display:block;font-size:11px;font-weight:700}.tool-key{display:block;color:var(--muted);font:9px var(--mono)}.field{display:grid;grid-template-columns:1fr 92px;align-items:center;gap:10px;margin:9px 0}.field label,.field-label{color:#c0c8bf;font-size:11px}.range-line{display:flex;align-items:center;gap:8px}.range-line output{min-width:44px;color:var(--acid);font:10px var(--mono)}.checkline{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;color:#c0c8bf;font-size:11px}.color-line{display:flex;align-items:center;gap:10px}.color-line input{max-width:64px}.tool-note{margin:11px 0 0;color:var(--muted);font-size:10px;line-height:1.6}.shortcuts{display:grid;grid-template-columns:1fr auto;gap:7px;color:var(--muted);font-size:10px}.shortcuts kbd{font:10px var(--mono);color:var(--ink);border:1px solid #58645a;border-radius:3px;padding:1px 5px}.stage{min-width:0;min-height:0;display:flex;flex-direction:column;background:#849581}.stagebar{height:48px;flex:0 0 48px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 13px;background:#232c27;border-bottom:1px solid #48544c}.stage-group{display:flex;align-items:center;gap:6px}.stagebar button{padding:6px 9px;font-size:11px}.stage-label{color:#d3d8cd;font:10px var(--mono)}#view{position:relative;flex:1;min-height:280px;overflow:hidden;touch-action:none}#view canvas{position:absolute;inset:0;width:100%;height:100%;display:block}.overlay{position:absolute;left:14px;bottom:13px;padding:7px 9px;background:#1b2420d9;border:1px solid #ffffff24;border-radius:3px;color:#e5e9dc;font:10px var(--mono);pointer-events:none}.object-count{position:absolute;right:14px;top:13px;padding:6px 8px;background:#1b2420d9;border:1px solid #ffffff24;border-radius:3px;color:#f4f1df;font:10px var(--mono);pointer-events:none}.stage-footer{min-height:36px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 13px;background:#232c27;border-top:1px solid #48544c;color:var(--muted);font:10px var(--mono)}.stats{display:grid;grid-template-columns:1fr 1fr;gap:7px}.stat{padding:10px;background:#252f2a;border:1px solid #37423a;border-radius:4px}.stat strong{display:block;color:var(--acid);font:18px var(--mono)}.stat span{display:block;margin-top:3px;color:var(--muted);font-size:10px}.inspector-info{display:grid;gap:8px;color:#d7ddd4;font-size:11px}.inspector-info span{color:var(--muted);font:10px var(--mono)}.play-card{padding:11px;background:#252f2a;border:1px solid #37423a;border-radius:4px}.play-card strong{display:block;margin-bottom:5px;font-size:11px}.play-card p{margin:0;color:var(--muted);font-size:10px}.play-card button{width:100%;margin-top:10px}.notice{padding:10px;background:#33352a;border-left:2px solid var(--acid);color:#d6d7bf;font-size:10px;line-height:1.6}.hidden{display:none!important}.mobile-tools{display:none}
++    @media(max-width:1080px){.layout{grid-template-columns:220px minmax(280px,1fr)}.inspector{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-left:0;border-top:1px solid var(--line);max-height:230px}.inspector .section{border-right:1px solid #323c35}.layout{height:auto;min-height:calc(100vh - 62px)}.stage{min-height:65vh}}
++    @media(max-width:680px){.topbar{height:auto;min-height:58px;padding:9px 11px;gap:8px;flex-wrap:wrap}.brand small{display:none}.brand{gap:7px}.mark{width:30px;height:30px}.project-title{max-width:none;flex:1}.top-actions{width:100%;justify-content:flex-end}.save-state{margin-right:auto}.top-actions button{padding:7px 9px;font-size:11px}.layout{height:auto;min-height:0;display:flex;flex-direction:column}.stage{order:0;width:100%;min-height:58vh}.stagebar{height:auto;min-height:44px;flex-wrap:wrap;padding:6px 8px}.stagebar button{padding:6px;font-size:10px}.stage-group{gap:4px}.stage-label{font-size:9px}#view{min-height:45vh}.sidebar{order:1;width:100%;overflow:visible;border-right:0;border-top:1px solid var(--line)}.inspector{order:2;width:100%;display:block;max-height:none;border-top:1px solid var(--line)}.inspector .section{border-right:0}.tools{grid-template-columns:repeat(3,1fr)}.tool{min-height:48px;padding:5px;gap:5px}.tool-name{font-size:10px}.stage-footer{font-size:9px}.shortcuts{grid-template-columns:1fr auto}}
++    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
++  </style>
++</head>
++<body>
++  <header class="topbar">
++    <div class="brand"><div class="mark">M</div><div><strong>MiniGame Studio</strong><small>Atelier 3D · v1.2</small></div></div>
++    <label class="project-title"><span aria-hidden="true">✎</span><input id="projectName" maxlength="50" value="Jardin suspendu" aria-label="Nom du projet"></label>
++    <div class="top-actions"><span id="saveStatus" class="save-state" aria-live="polite">Initialisation du monde…</span><button id="undoBtn" class="icon" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled>↶</button><button id="redoBtn" class="icon" title="Rétablir (Ctrl+Y)" aria-label="Rétablir" disabled>↷</button><button id="newBtn" class="subtle">＋ Nouveau</button><button id="saveBtn">Enregistrer</button></div>
++  </header>
++  <main class="layout">
++    <aside class="sidebar" aria-label="Outils de création">
++      <section class="section" id="toolsPanel"><h2 class="section-heading">Bibliothèque <button type="button" data-panel-toggle="toolsPanel" aria-label="Replier la bibliothèque">−</button></h2>
++        <div class="tools">
++          <button class="tool active" data-tool="block" data-shortcut="1"><span class="tool-swatch" style="--swatch:#587c62"></span><span><span class="tool-name">Bloc</span><span class="tool-key">1 · solide</span></span></button>
++          <button class="tool" data-tool="platform" data-shortcut="2"><span class="tool-swatch" style="--swatch:#b88051"></span><span><span class="tool-name">Plateforme</span><span class="tool-key">2 · solide</span></span></button>
++          <button class="tool" data-tool="rock" data-shortcut="3"><span class="tool-swatch" style="--swatch:#92938a"></span><span><span class="tool-name">Rocher</span><span class="tool-key">3 · solide</span></span></button>
++          <button class="tool" data-tool="coin" data-shortcut="4"><span class="tool-swatch" style="--swatch:#f3c960"></span><span><span class="tool-name">Cristal</span><span class="tool-key">4 · bonus</span></span></button>
++          <button class="tool" data-tool="hazard" data-shortcut="5"><span class="tool-swatch" style="--swatch:#da5e58"></span><span><span class="tool-name">Danger</span><span class="tool-key">5 · piège</span></span></button>
++          <button class="tool" data-tool="spawn" data-shortcut="6"><span class="tool-swatch" style="--swatch:#4bb9a2"></span><span><span class="tool-name">Départ</span><span class="tool-key">6 · joueur</span></span></button>
++          <button class="tool" data-tool="goal" data-shortcut="7"><span class="tool-swatch" style="--swatch:#9b80d5"></span><span><span class="tool-name">Portail</span><span class="tool-key">7 · objectif</span></span></button>
++          <button class="tool" data-tool="tree" data-shortcut="8"><span class="tool-swatch" style="--swatch:#638859"></span><span><span class="tool-name">Arbre</span><span class="tool-key">8 · décor</span></span></button>
++          <button class="tool" data-tool="lamp" data-shortcut="9"><span class="tool-swatch" style="--swatch:#e5a94f"></span><span><span class="tool-name">Balise</span><span class="tool-key">9 · lumière</span></span></button>
++          <button class="tool" data-tool="water"><span class="tool-swatch" style="--swatch:#478da0"></span><span><span class="tool-name">Eau</span><span class="tool-key">décor</span></span></button>
++          <button class="tool" data-tool="select"><span class="tool-swatch" style="--swatch:#d9e879"></span><span><span class="tool-name">Sélection</span><span class="tool-key">inspecter</span></span></button>
++          <button class="tool" data-tool="erase"><span class="tool-swatch" style="--swatch:#353b36"></span><span><span class="tool-name">Gomme</span><span class="tool-key">supprimer</span></span></button>
++        </div><p id="toolStatus" class="tool-note" aria-live="polite">Bloc · clic pour utiliser dans la scène</p>
++      </section>
++      <section class="section" id="worldPanel"><h2 class="section-heading">Monde <button type="button" data-panel-toggle="worldPanel" aria-label="Replier les réglages du monde">−</button></h2>
++        <div class="field"><label for="gameMode">Type de jeu</label><select id="gameMode"><option value="platformer">Plateformes</option><option value="explorer">Exploration</option><option value="racer">Course</option></select></div>
++        <div class="field"><label for="terrainSelect">Environnement</label><select id="terrainSelect"><option value="grove">Clairière</option><option value="desert">Désert</option><option value="frost">Montagne</option><option value="dusk">Crépuscule</option></select></div>
++        <div class="field"><label for="mapWidth">Largeur</label><input id="mapWidth" type="number" min="6" max="50" value="18"></div>
++        <div class="field"><label for="mapDepth">Profondeur</label><input id="mapDepth" type="number" min="6" max="50" value="14"></div>
++        <button id="resizeBtn" style="width:100%">Redimensionner la carte</button>
++        <label class="checkline" for="gridToggle"><span>Afficher la grille</span><input id="gridToggle" type="checkbox" checked></label>
++      </section>
++      <section class="section" id="helpPanel"><h2 class="section-heading">Raccourcis <button type="button" data-panel-toggle="helpPanel" aria-label="Replier les raccourcis">−</button></h2>
++        <div class="shortcuts"><span>Caméra orbitale</span><kbd>glisser</kbd><span>Zoom</span><kbd>molette</kbd><span>Placer à l’étage</span><kbd>Alt + clic</kbd><span>Annuler / rétablir</span><kbd>Ctrl Z / Y</kbd><span>Jouer / arrêter</span><kbd>Échap</kbd></div>
++      </section>
++    </aside>
++    <section class="stage" aria-label="Scène 3D">
++      <div class="stagebar"><div class="stage-group"><button id="homeView" title="Vue orbitale">Vue 3D</button><button id="topView" title="Vue du dessus">Dessus</button><button id="undoBtnMirror" class="hidden" tabindex="-1" aria-hidden="true"></button></div><div class="stage-group"><label class="stage-label" for="elevation">Étage</label><input id="elevation" type="range" min="0" max="11" value="0" style="width:84px"><output id="elevationValue" class="stage-label">0 m</output></div><div class="stage-group"><button id="exportBtn">JSON</button><button id="shareBtn">Partager</button></div></div>
++      <div id="view" role="application" aria-label="Éditeur de monde voxel 3D"><span class="object-count" id="objectCount">0 objets</span><span class="overlay">Glisser : orbiter · Molette : zoom · Clic : construire</span></div>
++      <footer class="stage-footer"><span id="playState">ÉDITEUR</span><span id="worldSize">18 × 14</span><span id="selectedPosition">Aucun objet sélectionné</span></footer>
++    </section>
++    <aside class="inspector" aria-label="Inspecteur et test">
++      <section class="section"><h2 class="section-heading">Test du jeu</h2><div class="play-card"><strong id="playStateLabel">Tester le niveau</strong><p>Déplace-toi dans ton monde et vérifie les collisions, cristaux et objectifs.</p><button id="playBtn" class="primary">▶ Lancer la partie</button><button id="stopBtn" class="hidden">■ Arrêter le test</button></div><p class="tool-note">Contrôles : ZQSD / WASD ou flèches · Espace pour sauter en mode plateformes · Échap pour arrêter.</p></section>
++      <section class="section"><h2 class="section-heading">Inspecteur</h2><div class="inspector-info"><div>Objet <span id="selectedType">Aucun</span></div><div>Position <span id="selectedPositionInfo">X — · Y — · Z —</span></div><div class="color-line"><label class="field-label" for="paintColor">Couleur</label><input id="paintColor" type="color" value="#587c62"></div></div></section>
++      <section class="section"><h2 class="section-heading">Statistiques</h2><div class="stats"><div class="stat"><strong id="objectCountStat">0</strong><span>Objets</span></div><div class="stat"><strong id="coinCount">0</strong><span>Cristaux</span></div><div class="stat"><strong id="solidCount">0</strong><span>Blocs solides</span></div><div class="stat"><strong id="worldSizeStat">18 × 14</strong><span>Cases</span></div></div><div class="field" style="display:none"><span id="activeToolName">Bloc</span><span id="selectedPositionInfoMirror"></span><span id="objectCountMirror"></span><span id="worldSizeMirror"></span></div></section>
++      <section class="section"><h2 class="section-heading">Ambiance</h2><div class="range-line"><label class="field-label" for="daylight">Lumière</label><input id="daylight" type="range" min="0" max="100" value="80"><output id="daylightValue">Jour</output></div></section>
++      <section class="section"><h2 class="section-heading">Projet</h2><div class="stage-group" style="flex-wrap:wrap"><button id="importBtn">Importer JSON</button><button id="exportGameBtn">Exporter jeu 3D</button></div><input id="importFile" type="file" accept=".json,application/json" hidden><p class="tool-note">Sauvegarde automatique sur cet appareil. Le lien de partage embarque les données du niveau.</p></section>
++    </aside>
++  </main>
++  <script type="module" src="./app.js"></script>
++</body>
++</html>

@@ -1,42 +1,29 @@
-# 🎮 MiniGame Studio
+# MiniGame Studio
 
-**MiniGame Studio** est un éditeur de jeux 2D directement dans ton navigateur ! Crée tes propres niveaux, teste-les instantanément et sauvegarde tes projets grâce à une interface moderne et intuitive.
+**MiniGame Studio 3D** est un éditeur de mondes voxel directement dans le navigateur. Construis un niveau, règle son ambiance, puis lance une partie pour le tester.
 
-## ✨ Fonctionnalités
+## Essayer en ligne
 
-- 🧱 **Éditeur de niveaux interactif** : place des blocs, des pièces, des dangers et des objectifs.
-- 🎮 **Trois modes de jeu** : plateformes, exploration 2D et course vue du dessus.
-- ▶️ **Test instantané** : joue à ton niveau directement dans l'éditeur.
-- 💾 **Sauvegarde locale** : conserve tes projets dans ton navigateur.
-- 📦 **Import et export JSON** : partage et recharge tes niveaux.
-- 🕹️ **Export HTML jouable** : télécharge un jeu autonome, jouable au clavier et sur mobile.
-- 🎨 **Interface moderne** : un espace de création sombre et personnalisable.
-- 🌐 **Accessible sur le Web** : fonctionne avec HTML, CSS et JavaScript, sans installation.
+[Ouvrir MiniGame Studio sur GitHub Pages](https://nitrox-creator.github.io/MiniGame-Studio/)
 
-## 🛠️ Technologies
+Si le site n'est pas encore publié, active GitHub Pages dans **Settings → Pages** : choisis **Deploy from a branch**, la branche `main` et le dossier `/ (root)`, puis enregistre. La première publication peut prendre quelques minutes.
 
-- HTML5
-- CSS3
-- JavaScript
-- Canvas API
-- LocalStorage
+## Fonctionnalités
 
-## 🚀 Installation
+- Éditeur 3D voxel avec caméra orbitale, vue du dessus et zoom.
+- Bibliothèque de blocs, plateformes, rochers, cristaux, dangers, départs, portails, arbres, balises et eau.
+- Placement à différentes hauteurs, sélection, gomme et personnalisation des couleurs.
+- Modes plateformes, exploration et course; quatre environnements et réglage de la lumière.
+- Test jouable, contrôles clavier, collecte de cristaux et détection des dangers et objectifs.
+- Annuler/rétablir, raccourcis clavier, sauvegarde automatique locale, import/export JSON et liens de partage.
+- Export d'un jeu 3D HTML à partager.
 
-Aucune installation nécessaire ! Ouvre simplement le site dans ton navigateur.
+## Lancer en local
 
-## 🎯 Objectif du projet
+Le projet n'a pas d'étape de compilation. Comme Three.js est chargé depuis jsDelivr, une connexion Internet est nécessaire. Ouvre `index.html` avec un serveur HTTP local, par exemple l'extension **Live Server** de VS Code; évite `file://`, qui peut bloquer les modules JavaScript.
 
-Créer un petit studio de développement de jeux accessible à tous, permettant d'expérimenter la création de niveaux directement depuis son navigateur.
+## Publication GitHub Pages
 
-**MiniGame Studio — Imagine. Construis. Joue.**
+Le dépôt est configuré pour un hébergement statique. Dans **Settings → Pages**, publie la branche `main` depuis `/ (root)`. Le point d'entrée `index.html` charge `app.js`; Three.js et ses contrôles sont importés depuis jsDelivr via l'import map. Aucun backend n'est requis.
 
-## 🌐 Publier sur GitHub Pages
-
-L'éditeur est une page HTML autonome : aucune compilation, dépendance ou serveur n'est nécessaire.
-
-1. Envoie `index.html` sur la branche publiée de ton dépôt GitHub.
-2. Dans **Settings → Pages**, choisis **Deploy from a branch**, sélectionne la branche et le dossier `/ (root)`, puis enregistre.
-3. Ouvre l'adresse GitHub Pages affichée dans ces paramètres.
-
-Dans l'éditeur, **Exporter le jeu** télécharge également un fichier HTML autonome que tu peux publier ou partager séparément. Les projets enregistrés dans le navigateur restent propres à cet appareil; utilise l'export JSON pour les transférer.
+Les sauvegardes automatiques restent dans le navigateur utilisé. Exporte le projet en JSON ou crée un lien de partage pour le transférer.

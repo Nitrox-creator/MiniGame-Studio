@@ -279,6 +279,8 @@ function updateStats() {
   $('coinCount').textContent = String(coins);
   $('solidCount').textContent = String(solids);
   $('worldSize').textContent = `${width} × ${depth}`;
+  $('objectCountStat').textContent = String(blocks.size);
+  $('worldSizeStat').textContent = `${width} × ${depth}`;
 }
 
 function toggleMode(nextMode) {
@@ -404,6 +406,7 @@ function selectBlock(key) {
   selectedType = 'select';
   $('selectedType').textContent = definitions[block.type].name;
   $('selectedPosition').textContent = `X ${block.x + 1} · Y ${block.y + 1} · Z ${block.z + 1}`;
+  $('selectedPositionInfo').textContent = `X ${block.x + 1} · Y ${block.y + 1} · Z ${block.z + 1}`;
   $('paintColor').value = block.color || definitions[block.type].color;
   hoveredKey = key;
   document.querySelectorAll('[data-tool]').forEach((button) => button.classList.remove('active'));
